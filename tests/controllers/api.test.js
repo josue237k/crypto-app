@@ -45,8 +45,8 @@ describe('GET /api/alerts', () => {
   });
 
   it('should return all alerts sorted by createdAt descending', async () => {
-    await Alert.create({ targetPrice: 60000, type: 'above' });
-    await Alert.create({ targetPrice: 50000, type: 'below' });
+    await Alert.create({ targetPrice: 60000, type: 'above', createdAt: new Date('2025-01-01T00:00:00Z') });
+    await Alert.create({ targetPrice: 50000, type: 'below', createdAt: new Date('2025-01-02T00:00:00Z') });
 
     const res = await request(app).get('/api/alerts');
 

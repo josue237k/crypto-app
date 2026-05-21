@@ -28,7 +28,7 @@ async function createAlert(req, res) {
   try {
     const { targetPrice, type } = req.body;
 
-    if (targetPrice === undefined || !type) {
+    if (targetPrice === undefined || targetPrice === null || typeof targetPrice !== 'number' || !type) {
       return res.status(400).json({ error: 'Les champs targetPrice et type sont requis.' });
     }
 
