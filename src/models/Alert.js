@@ -17,7 +17,8 @@ const alertSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['active', 'triggered'],
-    default: 'active'
+    default: 'active',
+    index: true
   },
   triggeredAt: {
     type: Date,
