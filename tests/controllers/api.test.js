@@ -74,6 +74,17 @@ describe('POST /api/alerts', () => {
     expect(res.body.triggeredAt).toBeNull();
   });
 
+  it('should create a new alert with a specific symbol', async () => {
+    const res = await request(app)
+      .post('/api/alerts')
+      .send({ symbol: 'ETH', targetPrice: 3000, type: 'below' });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.symbol).toBe('ETH');
+    expect(res.body.targetPrice).toBe(3000);
+    expect(res.body.type).toBe('below');
+  });
+
   it('should return 400 if targetPrice is missing', async () => {
     const res = await request(app)
       .post('/api/alerts')
@@ -144,17 +155,43 @@ describe('DELETE /api/alerts/:id', () => {
   });
 });
 
+// ─── DELETE /api/alerts/triggered ─────────────────────────────────────────────
+
+describe('DELETE /api/alerts/triggered', () => {
+  it('should delete all alerts with status triggered and keep active ones', async () => {
+    // Create some active and triggered alerts
+    await Alert.create({ symbol: 'BTC', targetPrice: 60000, type: 'above', status: 'active' });
+    await Alert.create({ symbol: 'ETH', targetPrice: 3000, type: 'below', status: 'triggered', triggeredAt: new Date() });
+    await Alert.create({ symbol: 'SOL', targetPrice: 150, type: 'above', status: 'triggered', triggeredAt: new Date() });
+
+    const res = await request(app).delete('/api/alerts/triggered');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toContain('vidé avec succès');
+    expect(res.body.count).toBe(2);
+
+    // Verify DB state
+    const allAlerts = await Alert.find({});
+    expect(allAlerts).toHaveLength(1);
+    expect(allAlerts[0].symbol).toBe('BTC');
+    expect(allAlerts[0].status).toBe('active');
+  });
+});
+
 // ─── GET /api/price/history ───────────────────────────────────────────────────
 
 describe('GET /api/price/history', () => {
-  it('should return an empty array when no price history exists', async () => {
+  it('should return empty history and null indicators when no price history exists', async () => {
     const res = await request(app).get('/api/price/history');
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.symbol).toBe('BTC');
+    expect(res.body.history).toEqual([]);
+    expect(res.body.indicators).toBeDefined();
+    expect(res.body.indicators.rsi).toBeNull();
   });
 
-  it('should return price history sorted from oldest to newest', async () => {
+  it('should return price history sorted from oldest to newest with indicators', async () => {
     await PriceHistory.create({ price: 60000 });
     await PriceHistory.create({ price: 65000 });
     await PriceHistory.create({ price: 70000 });
@@ -162,10 +199,12 @@ describe('GET /api/price/history', () => {
     const res = await request(app).get('/api/price/history');
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveLength(3);
+    expect(res.body.symbol).toBe('BTC');
+    expect(res.body.history).toHaveLength(3);
     // Du plus ancien au plus récent
-    expect(res.body[0].price).toBe(60000);
-    expect(res.body[2].price).toBe(70000);
+    expect(res.body.history[0].price).toBe(60000);
+    expect(res.body.history[2].price).toBe(70000);
+    expect(res.body.indicators).toBeDefined();
   });
 
   it('should return at most 100 records', async () => {
@@ -175,7 +214,19 @@ describe('GET /api/price/history', () => {
     const res = await request(app).get('/api/price/history');
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.length).toBeLessThanOrEqual(100);
+    expect(res.body.history.length).toBeLessThanOrEqual(100);
+  });
+
+  it('should support filtering by symbol in query parameters', async () => {
+    await PriceHistory.create({ symbol: 'ETH', price: 3000 });
+    await PriceHistory.create({ symbol: 'BTC', price: 65000 });
+
+    const res = await request(app).get('/api/price/history?symbol=ETH');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.symbol).toBe('ETH');
+    expect(res.body.history).toHaveLength(1);
+    expect(res.body.history[0].price).toBe(3000);
   });
 });
 

@@ -1,71 +1,126 @@
 const PriceHistory = require('../models/PriceHistory');
 const Alert = require('../models/Alert');
 const sseService = require('./sseService');
-// dotenv is loaded once at the entry point (server.js)
 
 let intervalId = null;
+let latestTickers = {}; // Cache mémoire des derniers tickers { BTC: { price: 67000, changePercent: 1.5, high: 68000, low: 66000 } }
+
+// Top 50 des cryptomonnaies cibles par rapport à l'USDT
+const TARGET_COINS = [
+  'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE', 'SHIB', 'AVAX', 'DOT',
+  'LINK', 'NEAR', 'MATIC', 'LTC', 'BCH', 'UNI', 'APT', 'SUI', 'ATOM', 'FIL',
+  'ETC', 'ICP', 'IMX', 'GRT', 'LDO', 'HBAR', 'VET', 'RNDR', 'OP', 'ARB',
+  'MKR', 'AAVE', 'EGLD', 'THETA', 'INJ', 'TIA', 'STX', 'WIF', 'PEPE', 'FLOKI',
+  'BONK', 'FTM', 'RUNE', 'GALA', 'BEAM', 'AGIX', 'FET', 'OCEAN', 'JASMY', 'SEI'
+];
+
+const CORE_COINS = new Set(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
 
 /**
- * Effectue un fetch sur l'API Binance pour récupérer le prix du BTCUSDT,
- * l'enregistre en base de données, diffuse le prix via SSE, et évalue les alertes actives.
+ * Récupère le cours en temps réel pour le Top 50 des cryptomonnaies via l'API Binance (en une seule requête groupée),
+ * enregistre l'historique des pièces actives, évalue les alertes et diffuse les prix par SSE.
  * 
- * @returns {Promise<Object|null>} L'enregistrement PriceHistory créé, ou null en cas d'erreur.
+ * @returns {Promise<Array|null>} La liste des tickers mis à jour, ou null en cas d'erreur.
  */
 async function pollBinancePrice() {
   try {
-    const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+    const symbolsQuery = TARGET_COINS.map(coin => `"${coin}USDT"`).join(',');
+    const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
+    
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const data = await response.json();
-    const price = parseFloat(data.price);
+    const rawTickers = await response.json();
+    const timestamp = new Date();
 
-    if (isNaN(price)) {
-      throw new Error('Le prix obtenu de l\'API Binance n\'est pas un nombre valide');
-    }
+    const updatedTickers = [];
+    const priceHistoriesToInsert = [];
+    const triggeredAlertPromises = [];
 
-    // Sauvegarde du prix dans PriceHistory
-    const priceRecord = await PriceHistory.create({ price });
-
-    // Diffusion de la mise à jour aux clients SSE
-    sseService.broadcast('priceUpdate', {
-      price: priceRecord.price,
-      timestamp: priceRecord.timestamp
-    });
-
-    // Récupération de toutes les alertes actives
+    // Récupération de toutes les alertes actives pour cibler les cryptos à sauvegarder
     const activeAlerts = await Alert.find({ status: 'active' });
+    const coinsWithAlerts = new Set(activeAlerts.map(a => a.symbol));
 
-    for (const alert of activeAlerts) {
-      let isTriggered = false;
+    for (const raw of rawTickers) {
+      const symbol = raw.symbol.replace('USDT', '');
+      const price = parseFloat(raw.lastPrice);
+      const changePercent = parseFloat(raw.priceChangePercent);
+      const high = parseFloat(raw.highPrice);
+      const low = parseFloat(raw.lowPrice);
+      const volume = parseFloat(raw.volume);
 
-      if (alert.type === 'above' && price >= alert.targetPrice) {
-        isTriggered = true;
-      } else if (alert.type === 'below' && price <= alert.targetPrice) {
-        isTriggered = true;
+      if (isNaN(price)) continue;
+
+      // Mettre à jour le cache mémoire
+      latestTickers[symbol] = {
+        symbol,
+        price,
+        changePercent,
+        high,
+        low,
+        volume,
+        timestamp
+      };
+
+      updatedTickers.push(latestTickers[symbol]);
+
+      // Sauvegarde sélective de l'historique pour éviter d'inonder MongoDB
+      if (CORE_COINS.has(symbol) || coinsWithAlerts.has(symbol)) {
+        priceHistoriesToInsert.push({
+          symbol,
+          price,
+          timestamp
+        });
       }
 
-      if (isTriggered) {
-        alert.status = 'triggered';
-        alert.triggeredAt = new Date();
-        await alert.save();
+      // Évaluer les alertes actives pour cette cryptomonnaie
+      const alertsForCoin = activeAlerts.filter(a => a.symbol === symbol);
+      for (const alert of alertsForCoin) {
+        let isTriggered = false;
 
-        // Diffusion immédiate de l'alerte déclenchée
-        // Diffusion immédiate de l'alerte déclenchée (plain object pour éviter
-        // de sérialiser les internals Mongoose comme __v)
-        sseService.broadcast('alertTriggered', alert.toObject());
+        if (alert.type === 'above' && price >= alert.targetPrice) {
+          isTriggered = true;
+        } else if (alert.type === 'below' && price <= alert.targetPrice) {
+          isTriggered = true;
+        }
+
+        if (isTriggered) {
+          alert.status = 'triggered';
+          alert.triggeredAt = timestamp;
+          
+          triggeredAlertPromises.push(
+            (async () => {
+              await alert.save();
+              sseService.broadcast('alertTriggered', alert.toObject());
+            })()
+          );
+        }
       }
     }
 
-    return priceRecord;
+    // Effectuer l'insertion groupée de l'historique des prix
+    if (priceHistoriesToInsert.length > 0) {
+      await PriceHistory.insertMany(priceHistoriesToInsert);
+    }
+
+    // Exécuter en parallèle la sauvegarde des alertes déclenchées
+    if (triggeredAlertPromises.length > 0) {
+      await Promise.all(triggeredAlertPromises);
+    }
+
+    // Diffuser la mise à jour globale des prix aux clients connectés
+    sseService.broadcast('priceUpdate', updatedTickers);
+
+    return updatedTickers;
   } catch (error) {
-    console.error('Erreur lors du polling du prix Binance:', error);
+    console.error('Erreur lors du polling global Binance:', error);
     return null;
   }
 }
 
 /**
- * Démarre le polling du prix Binance à intervalle régulier.
+ * Démarre le polling récurrent Binance.
  * 
  * @param {number} [intervalMs] - L'intervalle de temps en millisecondes.
  */
@@ -76,14 +131,14 @@ function startPolling(intervalMs) {
 
   const pollInterval = intervalMs || parseInt(process.env.BINANCE_POLL_INTERVAL, 10) || 5000;
 
-  // Lance le polling immédiatement au démarrage
+  // Lancement immédiat
   pollBinancePrice();
 
   intervalId = setInterval(pollBinancePrice, pollInterval);
 }
 
 /**
- * Arrête le polling du prix Binance.
+ * Arrête le polling.
  */
 function stopPolling() {
   if (intervalId) {
@@ -93,16 +148,158 @@ function stopPolling() {
 }
 
 /**
- * Indique si le polling est actuellement actif.
+ * Indique si le polling est actif.
  * @returns {boolean}
  */
 function isPolling() {
   return intervalId !== null;
 }
 
+/**
+ * Renvoie le cache en mémoire des derniers tickers.
+ * @returns {Object}
+ */
+function getLatestTickers() {
+  return latestTickers;
+}
+
+/**
+ * Calcule l'EMA d'une série de prix.
+ */
+function calculateEMA(prices, period) {
+  if (prices.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = prices[0];
+  for (let i = 1; i < prices.length; i++) {
+    ema = (prices[i] * k) + ema * (1 - k);
+  }
+  return parseFloat(ema.toFixed(2));
+}
+
+/**
+ * Calcule le RSI d'une série de prix.
+ */
+function calculateRSI(prices, period = 14) {
+  if (prices.length <= period) return null;
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = 1; i <= period; i++) {
+    const diff = prices[i] - prices[i - 1];
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    if (diff > 0) {
+      avgGain = (avgGain * (period - 1) + diff) / period;
+      avgLoss = (avgLoss * (period - 1)) / period;
+    } else {
+      avgGain = (avgGain * (period - 1)) / period;
+      avgLoss = (avgLoss * (period - 1) - diff) / period;
+    }
+  }
+
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  const rsi = 100 - (100 / (1 + rs));
+  return parseFloat(rsi.toFixed(2));
+}
+
+/**
+ * Projette les futurs prix à l'aide d'une régression linéaire.
+ */
+function calculateForecast(prices, steps = 10) {
+  if (prices.length < 5) return [];
+  const n = prices.length;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += prices[i];
+    sumXY += i * prices[i];
+    sumXX += i * i;
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const lastPrice = prices[n - 1];
+
+  const forecast = [];
+  for (let step = 1; step <= steps; step++) {
+    const projected = lastPrice + (slope * step);
+    forecast.push(parseFloat(projected.toFixed(2)));
+  }
+  return forecast;
+}
+
+/**
+ * Détermine le consensus de trading.
+ */
+function getConsensus(rsi, price, ema20, ema50) {
+  if (rsi === null) return 'NEUTRE';
+
+  let score = 0;
+  if (rsi < 30) score += 2;
+  else if (rsi < 45) score += 1;
+  else if (rsi > 70) score -= 2;
+  else if (rsi > 55) score -= 1;
+
+  if (ema20 && ema50) {
+    if (ema20 > ema50) score += 1;
+    else score -= 1;
+
+    if (price > ema20) score += 1;
+    else score -= 1;
+  }
+
+  if (score >= 3) return 'ACHAT FORT';
+  if (score >= 1) return 'ACHAT';
+  if (score <= -3) return 'VENTE FORTE';
+  if (score <= -1) return 'VENTE';
+  return 'NEUTRE';
+}
+
+/**
+ * Calcule tous les indicateurs et prédictions pour un symbole donné.
+ * @param {string} symbol - Le symbole de la crypto (ex: 'BTC').
+ * @returns {Promise<Object>} Les indicateurs techniques calculés.
+ */
+async function calculateIndicators(symbol) {
+  const history = await PriceHistory.find({ symbol: symbol.toUpperCase() })
+    .sort({ timestamp: 1 })
+    .limit(100);
+
+  const prices = history.map(h => h.price);
+  const currentPrice = prices[prices.length - 1] || null;
+
+  const ema20 = calculateEMA(prices, 20);
+  const ema50 = calculateEMA(prices, 50);
+  const rsi = calculateRSI(prices, 14);
+  const consensus = getConsensus(rsi, currentPrice, ema20, ema50);
+  const forecast = calculateForecast(prices, 10);
+
+  return {
+    ema20,
+    ema50,
+    rsi,
+    consensus,
+    forecast
+  };
+}
+
 module.exports = {
   pollBinancePrice,
   startPolling,
   stopPolling,
-  isPolling
+  isPolling,
+  getLatestTickers,
+  calculateIndicators,
+  TARGET_COINS
 };

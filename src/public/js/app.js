@@ -1,30 +1,61 @@
-// State Variables
-let currentPrice = 0;
-let lastPrice = 0;
+/**
+ * CryptoAlert — Premium Modular Frontend Orchestrator
+ * Structured as an ES6 module to coordinate the modular components.
+ */
+
+import { initTheme } from './components/theme.js';
+import { renderTicker, renderTable } from './components/table.js';
+import { drawChart } from './components/chart.js';
+import { initNews, fetchAndRenderNews } from './components/news.js';
+import { fetchAndRenderAlerts, createAlert, showToast, playAlertSound } from './components/alerts.js';
+
+// ─── State Variables ─────────────────────────────────────────────────────────
+let selectedSymbol = 'BTC';
+let marketTickers = {};
 let priceHistory = [];
+let currentIndicators = {};
 let selectedTriggerType = 'above';
 let sseSource = null;
 
-// DOM Elements
-const btcPriceEl = document.getElementById('btcPrice');
-const btcTrendEl = document.getElementById('btcTrend');
-const connStatusEl = document.getElementById('connStatus');
-const alertForm = document.getElementById('alertForm');
-const targetPriceInput = document.getElementById('targetPrice');
-const activeAlertList = document.getElementById('activeAlertList');
-const triggeredAlertList = document.getElementById('triggeredAlertList');
-const toastContainer = document.getElementById('toastContainer');
+// Track previous price for pulse animation
+let lastPrice = 0;
 
-// Initialize App
+// ─── Event Listeners & Startup ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  setupTriggerToggle();
-  fetchInitialData();
-  connectSSE();
+  // Call initTheme() to activate theme switching
+  initTheme();
 
-  alertForm.addEventListener('submit', handleAlertSubmit);
+  // Call initNews() to start news feeds
+  initNews();
+
+  // Wire up form inputs
+  setupSearchInput();
+  setupTriggerToggle();
+  setupAlertForm();
+  setupClearHistory();
+  setupExpressConverter();
+
+  // Fetch initial coin data
+  fetchInitialCoinData(selectedSymbol);
+
+  // Initialize client-side hash router
+  initRouter();
+
+  // Connect to live SSE stream
+  connectSSE();
 });
 
-// Setup Toggle Buttons for Above / Below Alert Type
+// ─── Setup Form & Search Inputs Helpers ──────────────────────────────────────
+function setupSearchInput() {
+  const coinSearch = document.getElementById('coinSearch');
+  if (coinSearch) {
+    coinSearch.addEventListener('input', () => {
+      // Re-render table on user keystroke to filter top coins
+      renderTable(marketTickers, selectedSymbol, handleCoinSelect);
+    });
+  }
+}
+
 function setupTriggerToggle() {
   const toggleButtons = document.querySelectorAll('.btn-toggle');
   toggleButtons.forEach(btn => {
@@ -35,33 +66,209 @@ function setupTriggerToggle() {
       });
       btn.classList.add('active');
       btn.setAttribute('aria-pressed', 'true');
-      selectedTriggerType = btn.dataset.type;
+      
+      // Update trigger type state variable
+      selectedTriggerType = btn.dataset.type || 'above';
     });
   });
 }
 
-// Fetch Initial Historical Prices and Alerts
-async function fetchInitialData() {
-  try {
-    // 1. Fetch History for the SVG Chart
-    const historyRes = await fetch('/api/price/history');
-    if (historyRes.ok) {
-      priceHistory = await historyRes.json();
-      if (priceHistory.length > 0) {
-        const latestRecord = priceHistory[priceHistory.length - 1];
-        updatePriceDisplay(latestRecord.price, false);
-        drawSVGChart();
-      }
-    }
+function setupAlertForm() {
+  const alertForm = document.getElementById('alertForm');
+  const targetPriceInput = document.getElementById('targetPrice');
+  
+  if (alertForm) {
+    alertForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!targetPriceInput) return;
 
-    // 2. Fetch Alerts List
-    fetchAlerts();
+      const price = parseFloat(targetPriceInput.value);
+      if (isNaN(price) || price <= 0) return;
+
+      // call createAlert to submit the target alert limit
+      const success = await createAlert(selectedSymbol, price, selectedTriggerType);
+      if (success) {
+        // Clear input on success
+        targetPriceInput.value = '';
+      }
+    });
+  }
+}
+
+function setupClearHistory() {
+  const clearBtn = document.getElementById('clearHistoryBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/alerts/triggered', { method: 'DELETE' });
+        if (res.ok) {
+          // Reload alerts for the currently active coin
+          await fetchAndRenderAlerts(selectedSymbol);
+          
+          // Show toast notification
+          const toastContainer = document.getElementById('toastContainer');
+          if (toastContainer) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `
+              <div class="toast-icon">🗑️</div>
+              <div class="toast-body">
+                <div class="toast-title">Historique vidé</div>
+                <div class="toast-desc">Toutes les alertes déclenchées ont été supprimées.</div>
+              </div>
+            `;
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+              toast.classList.add('fade-out');
+              toast.addEventListener('transitionend', () => toast.remove());
+            }, 3000);
+          }
+        } else {
+          console.error('Erreur API lors du nettoyage des alertes déclenchées');
+        }
+      } catch (error) {
+        console.error('Erreur lors du nettoyage de l\'historique des alertes:', error);
+      }
+    });
+  }
+}
+
+function setupExpressConverter() {
+  const cryptoInput = document.getElementById('converterCryptoInput');
+  const usdtInput = document.getElementById('converterUsdtInput');
+  
+  if (cryptoInput && usdtInput) {
+    cryptoInput.addEventListener('input', () => {
+      const activePrice = marketTickers[selectedSymbol]?.price || 0;
+      if (activePrice > 0) {
+        const val = parseFloat(cryptoInput.value);
+        if (!isNaN(val) && val >= 0) {
+          usdtInput.value = (val * activePrice).toFixed(2);
+        } else {
+          usdtInput.value = '';
+        }
+      }
+    });
+
+    usdtInput.addEventListener('input', () => {
+      const activePrice = marketTickers[selectedSymbol]?.price || 0;
+      if (activePrice > 0) {
+        const val = parseFloat(usdtInput.value);
+        if (!isNaN(val) && val >= 0) {
+          cryptoInput.value = (val / activePrice).toFixed(6);
+        } else {
+          cryptoInput.value = '';
+        }
+      }
+    });
+  }
+}
+
+function updateConverterDisplay() {
+  const cryptoSymbolEl = document.getElementById('converterCryptoSymbol');
+  const rateTextEl = document.getElementById('converterRateText');
+  const cryptoInput = document.getElementById('converterCryptoInput');
+  const usdtInput = document.getElementById('converterUsdtInput');
+
+  if (cryptoSymbolEl) cryptoSymbolEl.textContent = selectedSymbol;
+
+  const activePrice = marketTickers[selectedSymbol]?.price || 0;
+  if (rateTextEl) {
+    if (activePrice > 0) {
+      const formattedPrice = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: activePrice < 1 ? 4 : 2
+      }).format(activePrice);
+      rateTextEl.textContent = `1 ${selectedSymbol} = ${formattedPrice}`;
+    } else {
+      rateTextEl.textContent = `1 ${selectedSymbol} = — USDT`;
+    }
+  }
+
+  // Update USDT target value based on current activePrice and cryptoInput value
+  if (cryptoInput && usdtInput && activePrice > 0) {
+    const val = parseFloat(cryptoInput.value);
+    if (!isNaN(val) && val >= 0) {
+      usdtInput.value = (val * activePrice).toFixed(2);
+    }
+  }
+}
+
+function updateGlobalSentiment() {
+  const tickersArray = Object.values(marketTickers);
+  if (tickersArray.length === 0) return;
+
+  // Filter down to the Top 50 tickers by volume
+  const top50 = tickersArray
+    .sort((a, b) => (b.volume * b.price) - (a.volume * a.price))
+    .slice(0, 50);
+
+  const bullishCount = top50.filter(t => t.changePercent >= 0).length;
+  const bullishPct = Math.round((bullishCount / top50.length) * 100);
+  const bearishPct = 100 - bullishPct;
+
+  const gaugeFill = document.getElementById('sentimentGaugeFill');
+  const bullishPctEl = document.getElementById('bullishPct');
+  const bearishPctEl = document.getElementById('bearishPct');
+  const summaryTextEl = document.getElementById('sentimentSummaryText');
+
+  if (gaugeFill) {
+    gaugeFill.style.width = `${bullishPct}%`;
+  }
+  if (bullishPctEl) bullishPctEl.textContent = `${bullishPct}%`;
+  if (bearishPctEl) bearishPctEl.textContent = `${bearishPct}%`;
+
+  if (summaryTextEl) {
+    if (bullishPct > 55) {
+      summaryTextEl.textContent = `Le sentiment global est haussier. Les signaux du Top 50 sont dominés par les acheteurs (${bullishPct}% de hausse).`;
+    } else if (bullishPct < 45) {
+      summaryTextEl.textContent = `Le sentiment global est baissier. Les signaux du Top 50 indiquent une pression vendeuse (${bearishPct}% de baisse).`;
+    } else {
+      summaryTextEl.textContent = `Le marché est équilibré. Les forces du Top 50 sont partagées à parts égales (${bullishPct}% / ${bearishPct}%).`;
+    }
+  }
+}
+
+// ─── Operations ──────────────────────────────────────────────────────────────
+
+/**
+ * Fetches the historical price series and indicators for the given crypto symbol
+ * @param {string} symbol - Symbol of the cryptocurrency (e.g. 'BTC')
+ */
+async function fetchInitialCoinData(symbol) {
+  try {
+    const res = await fetch(`/api/price/history?symbol=${symbol}`);
+    if (res.ok) {
+      const data = await res.json();
+      
+      // Extract from the response wrapper { symbol, history, indicators }
+      priceHistory = data.history || [];
+      currentIndicators = data.indicators || {};
+
+      // Trigger initial selected price display update without animating pulse classes
+      const latestPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
+      updatePriceDisplay(latestPrice, false);
+
+      // Draw premium SVGs with computed technical indicators
+      drawChart(priceHistory, currentIndicators);
+
+      // Fetch existing active and triggered alerts for the symbol
+      await fetchAndRenderAlerts(symbol);
+
+      // Update Express Converter display values
+      updateConverterDisplay();
+    } else {
+      console.error('Erreur API lors de la récupération de l\'historique');
+    }
   } catch (error) {
     console.error('Erreur lors du chargement des données initiales:', error);
   }
 }
 
-// Connect to Server-Sent Events Stream
+/**
+ * Establishes real-time connection to Server-Sent Events stream
+ */
 function connectSSE() {
   if (sseSource) {
     sseSource.close();
@@ -69,271 +276,214 @@ function connectSSE() {
 
   sseSource = new EventSource('/api/price/stream');
 
+  const connStatusEl = document.getElementById('connStatus');
+
   sseSource.onopen = () => {
-    connStatusEl.className = 'status-badge live';
-    connStatusEl.querySelector('.status-text').textContent = 'EN DIRECT';
+    if (connStatusEl) {
+      connStatusEl.className = 'status-badge live';
+      const statusText = connStatusEl.querySelector('.status-text');
+      if (statusText) statusText.textContent = 'EN DIRECT';
+    }
   };
 
   sseSource.onerror = () => {
-    connStatusEl.className = 'status-badge disconnected';
-    connStatusEl.querySelector('.status-text').textContent = 'HORS LIGNE';
-    // Reconexion automatique gérée par EventSource nativement
+    if (connStatusEl) {
+      connStatusEl.className = 'status-badge disconnected';
+      const statusText = connStatusEl.querySelector('.status-text');
+      if (statusText) statusText.textContent = 'HORS LIGNE';
+    }
   };
 
   // Listen to Price Updates
   sseSource.addEventListener('priceUpdate', (e) => {
-    const data = JSON.parse(e.data);
-    updatePriceDisplay(data.price, true);
-    
-    // Add to history and draw chart
-    priceHistory.push(data);
-    if (priceHistory.length > 100) {
-      priceHistory.shift();
+    try {
+      const tickers = JSON.parse(e.data);
+      if (!Array.isArray(tickers)) return;
+
+      // Update local memory cache with latest Binance information
+      tickers.forEach(ticker => {
+        marketTickers[ticker.symbol] = ticker;
+      });
+
+      // Update horizontal ticker tape and Top 50 market table
+      renderTicker(marketTickers);
+      renderTable(marketTickers, selectedSymbol, handleCoinSelect);
+
+      // Update the Global Market Sentiment gauge dynamically
+      updateGlobalSentiment();
+
+      // Check if update applies to currently analyzed cryptocurrency
+      const activeTicker = tickers.find(t => t.symbol === selectedSymbol);
+      if (activeTicker) {
+        // Update hero elements with price pulse animations
+        updatePriceDisplay(activeTicker.price, true);
+
+        // Keep rolling array size to maximum 100 entries
+        priceHistory.push({
+          symbol: selectedSymbol,
+          price: activeTicker.price,
+          timestamp: activeTicker.timestamp || new Date().toISOString()
+        });
+        if (priceHistory.length > 100) {
+          priceHistory.shift();
+        }
+
+        // Re-draw chart with new real-time price point
+        drawChart(priceHistory, currentIndicators);
+
+        // Keep Express Converter live rates and calculated targets in sync
+        updateConverterDisplay();
+      }
+    } catch (err) {
+      console.error('Erreur de parsing dans le flux priceUpdate:', err);
     }
-    drawSVGChart();
   });
 
   // Listen to Triggered Alerts
   sseSource.addEventListener('alertTriggered', (e) => {
-    const alert = JSON.parse(e.data);
-    playAlertSound();
-    showToast(alert);
-    fetchAlerts(); // Reload list to update status
+    try {
+      const alert = JSON.parse(e.data);
+
+      // Custom synth audio chime
+      playAlertSound();
+
+      // Premium toast visual alert card
+      showToast(alert);
+
+      // Instantly reload matching alerts list
+      fetchAndRenderAlerts(selectedSymbol);
+    } catch (err) {
+      console.error('Erreur de parsing dans le flux alertTriggered:', err);
+    }
   });
 }
 
-// Update Hero Price display with vibrant green/red pulse animations
+/**
+ * Formats current price in USD, applies green or red price pulse class, and updates trend details
+ * @param {number} price - The latest market price of the selected symbol
+ * @param {boolean} animate - Whether to apply green/red CSS pulse classes
+ */
 function updatePriceDisplay(price, animate = true) {
-  lastPrice = currentPrice;
-  currentPrice = price;
+  const btcPriceEl = document.getElementById('btcPrice');
+  const btcTrendEl = document.getElementById('btcTrend');
+  if (!btcPriceEl) return;
 
+  // Format price in USD
   btcPriceEl.textContent = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2
+    minimumFractionDigits: price < 1 ? 4 : 2
   }).format(price);
 
-  if (!animate || lastPrice === 0) {
-    btcTrendEl.className = 'trend-indicator neutral';
-    btcTrendEl.querySelector('.trend-arrow').textContent = '─';
-    btcTrendEl.querySelector('.trend-pct').textContent = '0.00%';
-    return;
-  }
+  // Computes 24h change indicators based on marketTickers[selectedSymbol] info
+  const ticker = marketTickers[selectedSymbol];
+  if (btcTrendEl) {
+    if (ticker) {
+      const changePct = ticker.changePercent;
+      const arrow = changePct >= 0 ? '▲' : '▼';
+      const sign = changePct >= 0 ? '+' : '';
 
-  const diff = currentPrice - lastPrice;
-  const pct = (diff / lastPrice) * 100;
+      btcTrendEl.className = changePct >= 0 ? 'trend-indicator up' : 'trend-indicator down';
 
-  // Pulse animation classes
-  btcPriceEl.classList.remove('price-up', 'price-down');
-  void btcPriceEl.offsetWidth; // Trigger DOM reflow
+      const arrowEl = btcTrendEl.querySelector('.trend-arrow');
+      if (arrowEl) arrowEl.textContent = arrow;
 
-  if (diff > 0) {
-    btcPriceEl.classList.add('price-up');
-    btcTrendEl.className = 'trend-indicator up';
-    btcTrendEl.querySelector('.trend-arrow').textContent = '▲';
-    btcTrendEl.querySelector('.trend-pct').textContent = `+${pct.toFixed(4)}%`;
-  } else if (diff < 0) {
-    btcPriceEl.classList.add('price-down');
-    btcTrendEl.className = 'trend-indicator down';
-    btcTrendEl.querySelector('.trend-arrow').textContent = '▼';
-    btcTrendEl.querySelector('.trend-pct').textContent = `${pct.toFixed(4)}%`;
-  }
-}
-
-// Draw a Premium SVG Linear Chart
-function drawSVGChart() {
-  if (priceHistory.length < 2) return;
-
-  const svg = document.getElementById('priceChart');
-  const pathLine = document.getElementById('chartLine');
-  const pathFill = document.getElementById('chartFill');
-
-  const width = 500;
-  const height = 200;
-  const padding = 10;
-
-  const prices = priceHistory.map(d => d.price);
-  const minPrice = Math.min(...prices) * 0.9998;
-  const maxPrice = Math.max(...prices) * 1.0002;
-  const priceRange = maxPrice - minPrice;
-
-  let points = [];
-
-  for (let i = 0; i < priceHistory.length; i++) {
-    const x = padding + (i / (priceHistory.length - 1)) * (width - 2 * padding);
-    // Invert Y coordinate because SVG origin is top-left
-    const y = height - padding - ((prices[i] - minPrice) / priceRange) * (height - 2 * padding);
-    points.push({ x, y });
-  }
-
-  // Draw line path
-  const linePathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  pathLine.setAttribute('d', linePathD);
-
-  // Draw filled area path
-  const fillPathD = `${linePathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`;
-  pathFill.setAttribute('d', fillPathD);
-}
-
-// Fetch Alerts from Backend
-async function fetchAlerts() {
-  try {
-    const res = await fetch('/api/alerts');
-    if (!res.ok) throw new Error('Erreur API');
-
-    const alerts = await res.json();
-    
-    const active = alerts.filter(a => a.status === 'active');
-    const triggered = alerts.filter(a => a.status === 'triggered');
-
-    renderAlertList(active, activeAlertList, true);
-    renderAlertList(triggered, triggeredAlertList, false);
-  } catch (error) {
-    console.error('Erreur de chargement des alertes:', error);
-  }
-}
-
-// Render alert list into specific container
-function renderAlertList(alerts, container, isActiveList) {
-  container.innerHTML = '';
-
-  if (alerts.length === 0) {
-    container.innerHTML = `<li class="empty-msg">Aucune alerte ${isActiveList ? 'active' : 'déclenchée'}</li>`;
-    return;
-  }
-
-  alerts.forEach(alert => {
-    const li = document.createElement('li');
-    li.className = 'alert-item';
-
-    const formattedPrice = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(alert.targetPrice);
-
-    const timeString = alert.triggeredAt 
-      ? new Date(alert.triggeredAt).toLocaleTimeString('fr-FR')
-      : new Date(alert.createdAt).toLocaleTimeString('fr-FR');
-
-    li.innerHTML = `
-      <div class="alert-info">
-        <span class="alert-tag ${alert.type}">${alert.type === 'above' ? 'HAUSSE >' : 'BAISSE <'}</span>
-        <span class="alert-price">${formattedPrice}</span>
-      </div>
-      <div>
-        <span class="alert-time">${timeString}</span>
-        ${isActiveList ? `<button class="btn-delete" onclick="deleteAlert('${alert._id}')">🗑️</button>` : ''}
-      </div>
-    `;
-
-    container.appendChild(li);
-  });
-}
-
-// Submit New Alert
-async function handleAlertSubmit(e) {
-  e.preventDefault();
-
-  const targetPrice = parseFloat(targetPriceInput.value);
-  if (isNaN(targetPrice) || targetPrice <= 0) return;
-
-  try {
-    const res = await fetch('/api/alerts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetPrice,
-        type: selectedTriggerType
-      })
-    });
-
-    if (res.ok) {
-      targetPriceInput.value = '';
-      fetchAlerts();
+      const pctEl = btcTrendEl.querySelector('.trend-pct');
+      if (pctEl) pctEl.textContent = `${sign}${changePct.toFixed(2)}%`;
     } else {
-      const err = await res.json();
-      alert(`Erreur: ${err.error}`);
+      btcTrendEl.className = 'trend-indicator neutral';
+
+      const arrowEl = btcTrendEl.querySelector('.trend-arrow');
+      if (arrowEl) arrowEl.textContent = '─';
+
+      const pctEl = btcTrendEl.querySelector('.trend-pct');
+      if (pctEl) pctEl.textContent = '0.00%';
     }
-  } catch (error) {
-    console.error('Erreur création alerte:', error);
   }
-}
 
-// Delete Active Alert
-async function deleteAlert(id) {
-  try {
-    const res = await fetch(`/api/alerts/${id}`, {
-      method: 'DELETE'
-    });
-    if (res.ok) {
-      fetchAlerts();
+  // Animates #btcPrice text color by temporarily applying green or red pulse CSS classes
+  if (animate && lastPrice > 0 && price !== lastPrice) {
+    btcPriceEl.classList.remove('price-up', 'price-down');
+    void btcPriceEl.offsetWidth; // Trigger DOM reflow to restart CSS animations
+    
+    if (price > lastPrice) {
+      btcPriceEl.classList.add('price-up');
+    } else {
+      btcPriceEl.classList.add('price-down');
     }
-  } catch (error) {
-    console.error('Erreur suppression alerte:', error);
   }
+
+  lastPrice = price;
 }
 
-// Show a gorgeous Premium Toast popup
-function showToast(alert) {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
+/**
+ * Handles action when a row or cryptocurrency is chosen for analysis
+ * @param {string} symbol - Symbol of selected coin
+ */
+function handleCoinSelect(symbol) {
+  selectedSymbol = symbol;
 
-  const formattedPrice = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(alert.targetPrice);
+  // Fast row transition update
+  renderTable(marketTickers, selectedSymbol, handleCoinSelect);
 
-  toast.innerHTML = `
-    <div class="toast-icon">🚨</div>
-    <div class="toast-body">
-      <div class="toast-title">Alerte Déclenchée !</div>
-      <div class="toast-desc">Le BTC a franchi le seuil de <strong>${formattedPrice}</strong> (${alert.type === 'above' ? 'Hausse' : 'Baisse'}).</div>
-    </div>
-  `;
+  // Fetch new data to draw new chart history and active alerts lists
+  fetchInitialCoinData(selectedSymbol);
+}
 
-  toastContainer.appendChild(toast);
+/**
+ * Initializes the client-side hash router for modular page/tab navigation.
+ */
+function initRouter() {
+  function handleRoute() {
+    let hash = window.location.hash;
+    if (!hash) {
+      hash = localStorage.getItem('activeTab') || '#dashboard';
+    }
 
-  // Auto remove after 5 seconds
-  setTimeout(() => {
-    toast.classList.add('fade-out');
-    toast.addEventListener('transitionend', () => {
-      toast.remove();
+    // Support only valid tabs: #dashboard, #news, #alerts
+    const validHashes = ['#dashboard', '#news', '#alerts'];
+    if (!validHashes.includes(hash)) {
+      hash = '#dashboard';
+    }
+
+    // Sync window location hash if it does not match
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
+    }
+
+    // Sync active tab in localStorage
+    localStorage.setItem('activeTab', hash);
+
+    const tabName = hash.substring(1);
+
+    // Toggle .active class on nav-tab buttons
+    const navTabs = document.querySelectorAll('.nav-tab');
+    navTabs.forEach(tab => {
+      if (tab.dataset.tab === tabName) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
     });
-  }, 5000);
-}
 
-// Web Audio API Synthesizer - Coin sound effect (Premium detail!)
-function playAlertSound() {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // First high note
-    const osc1 = audioCtx.createOscillator();
-    const gain1 = audioCtx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-    gain1.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-    
-    osc1.connect(gain1);
-    gain1.connect(audioCtx.destination);
-    
-    // Second higher harmony note (plays slightly delayed)
-    const osc2 = audioCtx.createOscillator();
-    const gain2 = audioCtx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08); // A5
-    gain2.gain.setValueAtTime(0.1, audioCtx.currentTime + 0.08);
-    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.48);
-    
-    osc2.connect(gain2);
-    gain2.connect(audioCtx.destination);
-
-    osc1.start();
-    osc1.stop(audioCtx.currentTime + 0.3);
-    osc2.start(audioCtx.currentTime + 0.08);
-    osc2.stop(audioCtx.currentTime + 0.48);
-  } catch (error) {
-    console.error('Impossible de jouer le son d\'alerte (Web Audio bloqué):', error);
+    // Toggle .active and .fade-in classes on tab-view elements
+    const tabViews = document.querySelectorAll('.tab-view');
+    tabViews.forEach(view => {
+      const expectedId = 'view' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+      if (view.id === expectedId) {
+        view.classList.add('active');
+        void view.offsetWidth; // Force browser reflow to trigger transition
+        view.classList.add('fade-in');
+      } else {
+        view.classList.remove('active', 'fade-in');
+      }
+    });
   }
+
+  // Listen to hashchange events
+  window.addEventListener('hashchange', handleRoute);
+
+  // Trigger routing logic immediately to load current/saved tab
+  handleRoute();
 }
+

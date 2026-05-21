@@ -1,27 +1,31 @@
-/**
- * Contrôleur de l'historique de prix et du flux SSE.
- * Gère la récupération de l'historique des prix et l'enregistrement des clients SSE.
- */
-
 const PriceHistory = require('../models/PriceHistory');
 const sseService = require('../services/sseService');
+const binanceService = require('../services/binanceService');
 
 /**
  * GET /api/price/history
- * Retourne les 100 derniers enregistrements de prix, triés par timestamp croissant.
+ * Retourne les 100 derniers enregistrements de prix pour le symbole spécifié,
+ * triés par timestamp croissant, ainsi que les indicateurs techniques calculés.
  */
-async function getPriceHistory(req, res) {
+async function getPriceHistory(req, res, next) {
   try {
-    const history = await PriceHistory.find()
+    const symbol = (req.query.symbol || 'BTC').toUpperCase();
+    const history = await PriceHistory.find({ symbol })
       .sort({ timestamp: -1 })
       .limit(100)
       .lean();
 
-    // Retourner du plus ancien au plus récent pour le graphique
-    res.json(history.reverse());
+    // Calculer les indicateurs en utilisant le service binance
+    const indicators = await binanceService.calculateIndicators(symbol);
+
+    // Retourner l'historique trié du plus ancien au plus récent (graphique)
+    res.json({
+      symbol,
+      history: history.reverse(),
+      indicators
+    });
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'historique des prix:', error);
-    res.status(500).json({ error: 'Erreur serveur lors de la récupération de l\'historique.' });
+    next(error);
   }
 }
 
@@ -29,8 +33,12 @@ async function getPriceHistory(req, res) {
  * GET /api/price/stream
  * Établit une connexion SSE pour recevoir les mises à jour de prix en temps réel.
  */
-function streamPrice(req, res) {
-  sseService.registerClient(req, res);
+function streamPrice(req, res, next) {
+  try {
+    sseService.registerClient(req, res);
+  } catch (error) {
+    next(error);
+  }
 }
 
 module.exports = {

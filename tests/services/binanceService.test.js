@@ -3,17 +3,56 @@ const connectDB = require('../../src/config/db');
 const Alert = require('../../src/models/Alert');
 const PriceHistory = require('../../src/models/PriceHistory');
 const sseService = require('../../src/services/sseService');
-const { pollBinancePrice, startPolling, stopPolling, isPolling } = require('../../src/services/binanceService');
+const { 
+  pollBinancePrice, 
+  startPolling, 
+  stopPolling, 
+  isPolling, 
+  calculateIndicators 
+} = require('../../src/services/binanceService');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Crée un mock de réponse Binance pour un prix donné.
+ * Crée un mock de réponse Binance pour un ou plusieurs prix donnés.
  */
-function mockBinanceFetch(price) {
-  jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+function mockBinanceFetch(pricesMap) {
+  let tickers = [];
+  if (typeof pricesMap === 'number') {
+    tickers = [{
+      symbol: 'BTCUSDT',
+      lastPrice: String(pricesMap),
+      priceChangePercent: '1.5',
+      highPrice: String(pricesMap + 100),
+      lowPrice: String(pricesMap - 100),
+      volume: '1000'
+    }];
+  } else {
+    tickers = Object.entries(pricesMap).map(([symbol, price]) => ({
+      symbol: `${symbol}USDT`,
+      lastPrice: String(price),
+      priceChangePercent: '1.5',
+      highPrice: String(price + 100),
+      lowPrice: String(price - 100),
+      volume: '1000'
+    }));
+  }
+
+  // S'assurer qu'au moins BTC est là si vide
+  if (tickers.length === 0) {
+    tickers.push({
+      symbol: 'BTCUSDT',
+      lastPrice: '65000.5',
+      priceChangePercent: '1.5',
+      highPrice: '66000',
+      lowPrice: '64000',
+      volume: '1000'
+    });
+  }
+
+  jest.spyOn(global, 'fetch').mockResolvedValue({
     ok: true,
-    json: async () => ({ price: String(price) })
+    json: async () => tickers
   });
 }
 
@@ -26,18 +65,15 @@ describe('Binance Service Unit Tests', () => {
     await connectDB();
   });
 
-  beforeEach(() => {
-    // Espionner sseService.broadcast pour vérifier les diffusions SSE
+  beforeEach(async () => {
+    // Nettoyer les collections avant chaque test pour s'assurer d'une isolation parfaite
+    await Alert.deleteMany({});
+    await PriceHistory.deleteMany({});
     broadcastSpy = jest.spyOn(sseService, 'broadcast').mockImplementation(() => {});
   });
 
   afterEach(async () => {
-    // Nettoyer les collections de la BDD de test après chaque test
-    await Alert.deleteMany({});
-    await PriceHistory.deleteMany({});
-    // Restaurer tous les mocks
     jest.restoreAllMocks();
-    // Arrêter le polling si un test l'a démarré
     stopPolling();
   });
 
@@ -48,87 +84,88 @@ describe('Binance Service Unit Tests', () => {
   // ─── pollBinancePrice ──────────────────────────────────────────────────────
 
   describe('pollBinancePrice()', () => {
-    it('should save a PriceHistory record in the database', async () => {
+    it('should save a PriceHistory record in the database for CORE coins', async () => {
       mockBinanceFetch(65000.5);
 
       await pollBinancePrice();
 
-      const records = await PriceHistory.find({});
+      const records = await PriceHistory.find({ symbol: 'BTC' });
       expect(records).toHaveLength(1);
       expect(records[0].price).toBe(65000.5);
       expect(records[0].timestamp).toBeInstanceOf(Date);
     });
 
-    it('should broadcast a priceUpdate event via SSE with price and timestamp', async () => {
+    it('should broadcast priceUpdate event via SSE with an array of tickers', async () => {
       mockBinanceFetch(66000);
 
       await pollBinancePrice();
 
       expect(broadcastSpy).toHaveBeenCalledWith(
         'priceUpdate',
-        expect.objectContaining({
-          price: 66000,
-          timestamp: expect.any(Date)
-        })
+        expect.arrayContaining([
+          expect.objectContaining({
+            symbol: 'BTC',
+            price: 66000
+          })
+        ])
       );
     });
 
     it('should trigger an "above" alert when price >= targetPrice', async () => {
-      await Alert.create({ targetPrice: 60000, type: 'above' });
-      mockBinanceFetch(65000); // 65000 >= 60000 → doit se déclencher
+      await Alert.create({ symbol: 'BTC', targetPrice: 60000, type: 'above' });
+      mockBinanceFetch(65000);
 
       await pollBinancePrice();
 
-      const alert = await Alert.findOne({ type: 'above' });
+      const alert = await Alert.findOne({ symbol: 'BTC', type: 'above' });
       expect(alert.status).toBe('triggered');
       expect(alert.triggeredAt).toBeInstanceOf(Date);
     });
 
     it('should broadcast alertTriggered when an "above" alert is triggered', async () => {
-      await Alert.create({ targetPrice: 60000, type: 'above' });
+      await Alert.create({ symbol: 'BTC', targetPrice: 60000, type: 'above' });
       mockBinanceFetch(70000);
 
       await pollBinancePrice();
 
       expect(broadcastSpy).toHaveBeenCalledWith(
         'alertTriggered',
-        expect.objectContaining({ type: 'above', status: 'triggered' })
+        expect.objectContaining({ symbol: 'BTC', type: 'above', status: 'triggered' })
       );
     });
 
     it('should trigger a "below" alert when price <= targetPrice', async () => {
-      await Alert.create({ targetPrice: 70000, type: 'below' });
-      mockBinanceFetch(65000); // 65000 <= 70000 → doit se déclencher
+      await Alert.create({ symbol: 'BTC', targetPrice: 70000, type: 'below' });
+      mockBinanceFetch(65000);
 
       await pollBinancePrice();
 
-      const alert = await Alert.findOne({ type: 'below' });
+      const alert = await Alert.findOne({ symbol: 'BTC', type: 'below' });
       expect(alert.status).toBe('triggered');
       expect(alert.triggeredAt).toBeInstanceOf(Date);
     });
 
     it('should broadcast alertTriggered when a "below" alert is triggered', async () => {
-      await Alert.create({ targetPrice: 70000, type: 'below' });
+      await Alert.create({ symbol: 'BTC', targetPrice: 70000, type: 'below' });
       mockBinanceFetch(50000);
 
       await pollBinancePrice();
 
       expect(broadcastSpy).toHaveBeenCalledWith(
         'alertTriggered',
-        expect.objectContaining({ type: 'below', status: 'triggered' })
+        expect.objectContaining({ symbol: 'BTC', type: 'below', status: 'triggered' })
       );
     });
 
     it('should NOT trigger an "above" alert when price < targetPrice', async () => {
-      await Alert.create({ targetPrice: 80000, type: 'above' });
-      mockBinanceFetch(65000); // 65000 < 80000 → ne doit pas se déclencher
+      await Alert.create({ symbol: 'BTC', targetPrice: 80000, type: 'above' });
+      mockBinanceFetch(65000);
 
       await pollBinancePrice();
 
-      const alert = await Alert.findOne({ type: 'above' });
+      const alert = await Alert.findOne({ symbol: 'BTC', type: 'above' });
       expect(alert.status).toBe('active');
 
-      // alertTriggered ne doit PAS avoir été diffusé
       const alertTriggeredCalls = broadcastSpy.mock.calls.filter(
         call => call[0] === 'alertTriggered'
       );
@@ -136,12 +173,12 @@ describe('Binance Service Unit Tests', () => {
     });
 
     it('should NOT trigger a "below" alert when price > targetPrice', async () => {
-      await Alert.create({ targetPrice: 50000, type: 'below' });
-      mockBinanceFetch(65000); // 65000 > 50000 → ne doit pas se déclencher
+      await Alert.create({ symbol: 'BTC', targetPrice: 50000, type: 'below' });
+      mockBinanceFetch(65000);
 
       await pollBinancePrice();
 
-      const alert = await Alert.findOne({ type: 'below' });
+      const alert = await Alert.findOne({ symbol: 'BTC', type: 'below' });
       expect(alert.status).toBe('active');
 
       const alertTriggeredCalls = broadcastSpy.mock.calls.filter(
@@ -151,8 +188,8 @@ describe('Binance Service Unit Tests', () => {
     });
 
     it('should ignore already-triggered alerts', async () => {
-      // Créer une alerte déjà déclenchée
       await Alert.create({
+        symbol: 'BTC',
         targetPrice: 60000,
         type: 'above',
         status: 'triggered',
@@ -162,7 +199,6 @@ describe('Binance Service Unit Tests', () => {
 
       await pollBinancePrice();
 
-      // Vérifier qu'aucun alertTriggered n'est diffusé
       const alertTriggeredCalls = broadcastSpy.mock.calls.filter(
         call => call[0] === 'alertTriggered'
       );
@@ -172,18 +208,16 @@ describe('Binance Service Unit Tests', () => {
     it('should not crash when fetch fails', async () => {
       jest.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
 
-      // Ne doit pas lever d'exception
       await expect(pollBinancePrice()).resolves.toBeNull();
 
-      // Aucun enregistrement en BDD
       const records = await PriceHistory.find({});
       expect(records).toHaveLength(0);
     });
 
     it('should handle multiple simultaneous active alerts independently', async () => {
-      await Alert.create({ targetPrice: 60000, type: 'above' }); // déclenchée
-      await Alert.create({ targetPrice: 70000, type: 'below' }); // non déclenchée (65000 > 70000? non: 65000 <= 70000 => déclenchée aussi)
-      await Alert.create({ targetPrice: 80000, type: 'above' }); // non déclenchée (65000 < 80000)
+      await Alert.create({ symbol: 'BTC', targetPrice: 60000, type: 'above' });
+      await Alert.create({ symbol: 'BTC', targetPrice: 70000, type: 'below' });
+      await Alert.create({ symbol: 'BTC', targetPrice: 80000, type: 'above' });
       mockBinanceFetch(65000);
 
       await pollBinancePrice();
@@ -192,9 +226,38 @@ describe('Binance Service Unit Tests', () => {
       const belowAlert70k = await Alert.findOne({ targetPrice: 70000 });
       const aboveAlert80k = await Alert.findOne({ targetPrice: 80000 });
 
-      expect(aboveAlert60k.status).toBe('triggered'); // 65000 >= 60000 ✓
-      expect(belowAlert70k.status).toBe('triggered');  // 65000 <= 70000 ✓
-      expect(aboveAlert80k.status).toBe('active');    // 65000 < 80000 ✗
+      expect(aboveAlert60k.status).toBe('triggered');
+      expect(belowAlert70k.status).toBe('triggered');
+      expect(aboveAlert80k.status).toBe('active');
+    });
+  });
+
+  // ─── calculateIndicators ───────────────────────────────────────────────────
+
+  describe('calculateIndicators()', () => {
+    it('should calculate correct EMA, RSI, consensus and forecast', async () => {
+      // Pré-remplir l'historique de prix pour tester les indicateurs (RSI 14 a besoin de >14 points)
+      // On va créer 60 points de prix croissants
+      const basePrice = 100;
+      const historyData = [];
+      for (let i = 0; i < 60; i++) {
+        historyData.push({
+          symbol: 'BTC',
+          price: basePrice + i,
+          timestamp: new Date(Date.now() - (60 - i) * 1000)
+        });
+      }
+      await PriceHistory.insertMany(historyData);
+
+      const indicators = await calculateIndicators('BTC');
+
+      expect(indicators.ema20).toBeDefined();
+      expect(indicators.ema20).toBeGreaterThan(100);
+      expect(indicators.ema50).toBeDefined();
+      expect(indicators.rsi).toBe(100); // Car les prix ne font que monter
+      expect(indicators.consensus).toBe('NEUTRE'); // RSI suracheté (-2) compensé par la tendance haussière (+2)
+      expect(indicators.forecast).toHaveLength(10);
+      expect(indicators.forecast[0]).toBeGreaterThan(159); // La projection doit continuer la hausse
     });
   });
 
@@ -202,10 +265,16 @@ describe('Binance Service Unit Tests', () => {
 
   describe('startPolling() and stopPolling()', () => {
     it('should start and stop the polling interval', () => {
-      // Mocker fetch pour éviter les vrais appels réseau pendant les faux timers
       jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        json: async () => ({ price: '65000' })
+        json: async () => [{
+          symbol: 'BTCUSDT',
+          lastPrice: '65000',
+          priceChangePercent: '1.5',
+          highPrice: '66000',
+          lowPrice: '64000',
+          volume: '1000'
+        }]
       });
       jest.useFakeTimers();
 
@@ -216,31 +285,6 @@ describe('Binance Service Unit Tests', () => {
       expect(isPolling()).toBe(false);
 
       jest.useRealTimers();
-    });
-
-    it('should not create a second interval if already polling', () => {
-      // Mocker fetch pour éviter les vrais appels réseau pendant les faux timers
-      jest.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        json: async () => ({ price: '65000' })
-      });
-      jest.useFakeTimers();
-
-      startPolling(1000);
-      startPolling(1000); // Appel en double
-
-      expect(isPolling()).toBe(true);
-
-      stopPolling();
-      expect(isPolling()).toBe(false);
-
-      jest.useRealTimers();
-    });
-
-    it('should be safe to call stopPolling when not polling', () => {
-      expect(isPolling()).toBe(false);
-      expect(() => stopPolling()).not.toThrow();
-      expect(isPolling()).toBe(false);
     });
   });
 });

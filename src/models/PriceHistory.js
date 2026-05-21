@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 
 const priceHistorySchema = new mongoose.Schema({
+  symbol: {
+    type: String,
+    required: true,
+    uppercase: true,
+    trim: true,
+    default: 'BTC'
+  },
   price: {
     type: Number,
     required: true,
@@ -12,5 +19,7 @@ const priceHistorySchema = new mongoose.Schema({
     index: { expires: '24h' }
   }
 });
+
+priceHistorySchema.index({ symbol: 1, timestamp: -1 });
 
 module.exports = mongoose.model('PriceHistory', priceHistorySchema);

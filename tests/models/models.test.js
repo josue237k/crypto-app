@@ -31,11 +31,25 @@ describe('Mongoose Models Unit Tests', () => {
       const savedAlert = await alert.save();
 
       expect(savedAlert._id).toBeDefined();
+      expect(savedAlert.symbol).toBe('BTC');
       expect(savedAlert.targetPrice).toBe(65000.5);
       expect(savedAlert.type).toBe('above');
       expect(savedAlert.status).toBe('active');
       expect(savedAlert.triggeredAt).toBeNull();
       expect(savedAlert.createdAt).toBeInstanceOf(Date);
+    });
+
+    it('should convert custom symbol to uppercase and trim spaces', async () => {
+      const alertData = {
+        symbol: '  sol  ',
+        targetPrice: 150.25,
+        type: 'below'
+      };
+
+      const alert = new Alert(alertData);
+      const savedAlert = await alert.save();
+
+      expect(savedAlert.symbol).toBe('SOL');
     });
 
     it('should allow explicitly setting status and triggeredAt', async () => {
@@ -151,8 +165,21 @@ describe('Mongoose Models Unit Tests', () => {
       const savedHistory = await history.save();
 
       expect(savedHistory._id).toBeDefined();
+      expect(savedHistory.symbol).toBe('BTC');
       expect(savedHistory.price).toBe(66250.75);
       expect(savedHistory.timestamp).toBeInstanceOf(Date);
+    });
+
+    it('should convert custom symbol to uppercase and trim spaces in price history', async () => {
+      const priceData = {
+        symbol: '  eth  ',
+        price: 3500.50
+      };
+
+      const history = new PriceHistory(priceData);
+      const savedHistory = await history.save();
+
+      expect(savedHistory.symbol).toBe('ETH');
     });
 
     it('should fail validation if price is missing', async () => {

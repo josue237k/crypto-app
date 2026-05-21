@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Tableau de bord en temps réel pour suivre le cours du BTC/USDT et gérer des alertes de prix personnalisées.">
-  <title>CryptoAlert — Suivi BTC/USDT en Temps Réel</title>
+  <meta name="description" content="Tableau de bord de trading crypto premium en temps réel avec suivi de prix, indicateurs de tendance, alertes instantanées et actualités en direct.">
+  <title>CryptoAlert Pro — Premium Crypto Trading Terminal</title>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Favicon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₿</text></svg>">
@@ -22,100 +22,280 @@
   <div class="app-container">
 
     <!-- ─── Header ─────────────────────────────────────────────────────── -->
-    <header class="app-header">
-      <div class="logo-area">
-        <span class="logo-icon">₿</span>
-        <h1>CryptoAlert</h1>
+    <header class="app-header" data-testid="app-header">
+      <div class="logo-area" data-testid="logo-area">
+        <span class="logo-icon" data-testid="logo-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--purple-neon)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        </span>
+        <h1 data-testid="app-title">CryptoAlert Pro</h1>
       </div>
-      <div id="connStatus" class="status-badge disconnected">
-        <span class="status-dot"></span>
-        <span class="status-text">CONNEXION…</span>
+      <div class="header-actions">
+        <button id="themeToggler" class="theme-toggler-btn" data-testid="theme-toggler" title="Basculer le mode graphique">
+          <span class="sun-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          </span>
+          <span class="moon-icon" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </span>
+        </button>
+        <div id="connStatus" class="status-badge disconnected" data-testid="conn-status">
+          <span class="status-dot"></span>
+          <span class="status-text">CONNEXION…</span>
+        </div>
       </div>
     </header>
+
+    <!-- ─── Ticker Tape ────────────────────────────────────────────────── -->
+    <div id="tickerTapeContainer" class="ticker-tape-container" data-testid="ticker-tape-container">
+      <div id="tickerTape" class="ticker-tape" data-testid="ticker-tape">
+        <!-- Rendu dynamique des Top 5 Coins par JS -->
+      </div>
+    </div>
+
+    <!-- ─── Navigation Header Tab Bar ──────────────────────────────────── -->
+    <nav class="app-nav" data-testid="app-nav">
+      <a href="#dashboard" class="nav-tab active" data-tab="dashboard" data-testid="tab-dashboard">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        Tableau de bord
+      </a>
+      <a href="#news" class="nav-tab" data-tab="news" data-testid="tab-news">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-newspaper"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+        Actualités
+      </a>
+      <a href="#alerts" class="nav-tab" data-tab="alerts" data-testid="tab-alerts">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        Alertes
+      </a>
+    </nav>
 
     <!-- ─── Dashboard Grid ─────────────────────────────────────────────── -->
     <main class="dashboard-grid">
 
-      <!-- Hero Card — Live Price -->
-      <section class="card hero-card" aria-label="Prix actuel du BTC">
-        <span class="card-label">BTC / USDT</span>
-        <div id="btcPrice" class="price-display">$—</div>
-        <div id="btcTrend" class="trend-indicator neutral">
-          <span class="trend-arrow">─</span>
-          <span class="trend-pct">0.00%</span>
-        </div>
-      </section>
+      <!-- View 1: Dashboard Analytics -->
+      <div id="viewDashboard" class="tab-view active" data-testid="view-dashboard">
+        <!-- Hero Card — Active Coin Live Price & Technical Badges -->
+        <section class="card hero-card" aria-label="Prix actuel et indicateurs" data-testid="hero-card">
+          <span class="card-label" id="activeCoinSymbol" data-testid="active-coin-symbol">BTC / USDT</span>
+          <div id="btcPrice" class="price-display" data-testid="active-coin-price">$—</div>
+          
+          <div id="btcTrend" class="trend-indicator neutral" data-testid="active-coin-trend">
+            <span id="trendArrow" class="trend-arrow" data-testid="trend-arrow">─</span>
+            <span id="trendPct" class="trend-pct" data-testid="trend-pct">0.00%</span>
+          </div>
 
-      <!-- Chart Card — SVG Line Chart -->
-      <section class="card chart-card" aria-label="Graphique de prix">
-        <div class="card-header">
-          <h3>Évolution du Prix</h3>
-          <span class="timeframe">DERNIÈRES 24H</span>
-        </div>
-        <div class="chart-container">
-          <svg id="priceChart" viewBox="0 0 500 200" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.02"/>
-              </linearGradient>
-            </defs>
-            <path id="chartFill" fill="url(#chartGradient)" d=""/>
-            <path id="chartLine" fill="none" stroke="hsl(263, 80%, 58%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d=""/>
-          </svg>
-        </div>
-      </section>
+          <!-- Technical Indicators Sub-widget -->
+          <div class="indicators-sub-widget" data-testid="indicators-sub-widget">
+            <span id="consensusBadge" class="consensus-badge neutral" data-testid="consensus-badge">NEUTRE</span>
+            <span id="rsiValue" class="indicator-badge" data-testid="rsi-value">RSI(14) : —</span>
+            <span id="trendProjection" class="projection-badge" data-testid="trend-projection">Proj. 24h : —</span>
+          </div>
+        </section>
 
-      <!-- Form Card — Create New Alert -->
-      <section class="card form-card" aria-label="Créer une alerte">
-        <h3>Nouvelle Alerte</h3>
-        <form id="alertForm" autocomplete="off">
+        <!-- Chart Card — SVG Line Chart with EMA & Forecast -->
+        <section class="card chart-card" aria-label="Graphique de prix interactif" data-testid="chart-card">
+          <div class="card-header">
+            <h3>Évolution &amp; Prévisions</h3>
+            <span class="timeframe">24H &amp; FORECAST</span>
+          </div>
+          <div class="chart-container">
+            <svg id="priceChart" viewBox="0 0 500 200" preserveAspectRatio="none" data-testid="price-chart">
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.02"/>
+                </linearGradient>
+              </defs>
+              <!-- Background Fill Gradient -->
+              <path id="chartFill" fill="url(#chartGradient)" d="" data-testid="chart-fill"/>
+              <!-- Main Price Trend Line -->
+              <path id="chartLine" fill="none" stroke="hsl(263, 80%, 58%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="" data-testid="chart-line"/>
+              <!-- Technical indicators overlays -->
+              <path id="chartEMA20" fill="none" stroke="hsl(142, 70%, 45%)" stroke-width="1.5" stroke-dasharray="3,3" d="" data-testid="chart-ema20"/>
+              <path id="chartEMA50" fill="none" stroke="hsl(0, 84%, 60%)" stroke-width="1.5" stroke-dasharray="3,3" d="" data-testid="chart-ema50"/>
+              <path id="chartForecast" fill="none" stroke="hsl(263, 80%, 58%)" stroke-width="2" stroke-dasharray="5,5" d="" data-testid="chart-forecast"/>
+            </svg>
+          </div>
+        </section>
 
-          <div class="form-group">
-            <label>Type de déclencheur</label>
-            <div class="trigger-toggle">
-              <button type="button" class="btn-toggle active" data-type="above" aria-pressed="true">▲ Hausse</button>
-              <button type="button" class="btn-toggle" data-type="below" aria-pressed="false">▼ Baisse</button>
+        <!-- Market List Table Card -->
+        <section class="card market-card" aria-label="Tableau du marché crypto" data-testid="market-card">
+          <div class="card-header">
+            <h3>Marché Crypto (USDT)</h3>
+            <div class="search-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search search-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="coinSearch" placeholder="Rechercher une crypto..." autocomplete="off" data-testid="coin-search">
             </div>
           </div>
-
-          <div class="form-group">
-            <label for="targetPrice">Prix cible (USD)</label>
-            <input type="number" id="targetPrice" placeholder="ex: 70000" min="0" step="any" required>
+          <div class="table-container">
+            <table class="market-table">
+              <thead>
+                <tr>
+                  <th>Actif</th>
+                  <th>Prix (USD)</th>
+                  <th>Var. 24h</th>
+                  <th>Haut / Bas</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="marketTableBody" data-testid="market-table-body">
+                <!-- Rendu dynamique par JS -->
+              </tbody>
+            </table>
           </div>
-
-          <button type="submit" class="btn-submit">Créer l'alerte</button>
-        </form>
-      </section>
-
-      <!-- Alerts Card — Active & Triggered Lists -->
-      <section class="card alerts-card" aria-label="Liste des alertes">
-        <h3>Mes Alertes</h3>
-        <div class="alerts-sections">
-          <div>
-            <h4>🟢 Actives</h4>
-            <ul id="activeAlertList" class="alert-list">
-              <li class="empty-msg">Aucune alerte active</li>
-            </ul>
+          <div class="table-actions">
+            <button id="loadMoreBtn" class="btn-load-more" data-testid="load-more-btn">Voir Plus</button>
           </div>
-          <div>
-            <h4>🔔 Déclenchées</h4>
-            <ul id="triggeredAlertList" class="alert-list">
-              <li class="empty-msg">Aucune alerte déclenchée</li>
-            </ul>
+        </section>
+
+        <!-- Converter Card -->
+        <section class="card converter-card" aria-label="Convertisseur de devises" data-testid="converter-card">
+          <h3>Convertisseur Express</h3>
+          <div class="converter-inputs">
+            <div class="input-group">
+              <input type="number" id="converterCryptoInput" value="1" min="0" step="any" data-testid="converter-crypto-input">
+              <span class="input-addon" id="converterCryptoSymbol">BTC</span>
+            </div>
+            <div class="converter-arrows">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-repeat"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+            </div>
+            <div class="input-group">
+              <input type="number" id="converterUsdtInput" placeholder="Calcul..." min="0" step="any" data-testid="converter-usdt-input">
+              <span class="input-addon">USDT</span>
+            </div>
           </div>
-        </div>
-      </section>
+          <p class="converter-rate" id="converterRateText">1 BTC = — USDT</p>
+        </section>
+
+        <!-- Sentiment Card -->
+        <section class="card sentiment-card" aria-label="Baromètre du Sentiment Global" data-testid="sentiment-card">
+          <h3>Sentiment du Marché</h3>
+          <div class="sentiment-gauge-wrapper">
+            <div class="gauge-bar-container">
+              <div id="sentimentGaugeFill" class="gauge-bar-fill" style="width: 50%;"></div>
+            </div>
+            <div class="gauge-labels">
+              <span class="label-bearish">🔴 Bearish (<span id="bearishPct">50%</span>)</span>
+              <span class="label-bullish">🟢 Bullish (<span id="bullishPct">50%</span>)</span>
+            </div>
+          </div>
+          <p class="sentiment-summary" id="sentimentSummaryText">Le marché est neutre. Les signaux du Top 50 sont équilibrés.</p>
+        </section>
+      </div>
+
+      <!-- View 2: News Aggregator Feed -->
+      <div id="viewNews" class="tab-view" data-testid="view-news">
+        <!-- News Feed Widget Section -->
+        <section class="card news-card-section" aria-label="Actualités Crypto" data-testid="news-section">
+          <div class="card-header news-header">
+            <h3>Actualités Crypto en Direct</h3>
+            <div class="news-controls">
+              <div class="search-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search search-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="newsSearch" placeholder="Rechercher une actu..." autocomplete="off" data-testid="news-search">
+              </div>
+            </div>
+          </div>
+          <div class="news-categories" id="newsCategories" data-testid="news-categories">
+            <button class="category-pill active" data-category="all" data-testid="category-all">Tout</button>
+            <button class="category-pill" data-category="markets" data-testid="category-markets">Marchés</button>
+            <button class="category-pill" data-category="regulations" data-testid="category-regulations">Régulation</button>
+            <button class="category-pill" data-category="defi" data-testid="category-defi">DeFi</button>
+            <button class="category-pill" data-category="tech" data-testid="category-tech">Tech</button>
+          </div>
+          <div id="newsFeedContainer" class="news-feed-container" data-testid="news-feed-container">
+            <!-- Rendu dynamique par JS -->
+          </div>
+        </section>
+      </div>
+
+      <!-- View 3: Alerts Management -->
+      <div id="viewAlerts" class="tab-view" data-testid="view-alerts">
+        <!-- Form Card — Create New Alert -->
+        <section class="card form-card" aria-label="Créer une alerte" data-testid="form-card">
+          <h3>Nouvelle Alerte</h3>
+          <form id="alertForm" autocomplete="off" data-testid="alert-form">
+            <div class="form-group">
+              <label>Type de déclencheur</label>
+              <div class="trigger-toggle">
+                <button type="button" class="btn-toggle active" data-type="above" aria-pressed="true" data-testid="btn-toggle-above">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up"><path d="m5 12 7-7 7 7"/><path d="M12 5v14"/></svg>
+                  Hausse
+                </button>
+                <button type="button" class="btn-toggle" data-type="below" aria-pressed="false" data-testid="btn-toggle-below">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-down"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+                  Baisse
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="targetPrice">Prix cible (USD)</label>
+              <input type="number" id="targetPrice" placeholder="ex: 70000" min="0" step="any" required data-testid="target-price">
+            </div>
+
+            <button type="submit" class="btn-submit" data-testid="btn-submit-alert">Créer l'alerte</button>
+          </form>
+        </section>
+
+        <!-- Alerts Card — Active & Triggered Lists -->
+        <section class="card alerts-card" aria-label="Liste des alertes" data-testid="alerts-card">
+          <div class="card-header alerts-header">
+            <h3>Mes Alertes</h3>
+            <button id="clearHistoryBtn" class="btn-clear" data-testid="clear-history-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+              Vider l'historique
+            </button>
+          </div>
+          <div class="alerts-sections">
+            <div>
+              <h4>🟢 Actives</h4>
+              <ul id="activeAlertList" class="alert-list" data-testid="active-alert-list">
+                <li class="empty-msg">Aucune alerte active</li>
+              </ul>
+            </div>
+            <div>
+              <h4>🔔 Déclenchées</h4>
+              <ul id="triggeredAlertList" class="alert-list" data-testid="triggered-alert-list">
+                <li class="empty-msg">Aucune alerte déclenchée</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
 
     </main>
 
   </div>
 
-  <!-- Toast Notification Container -->
-  <div id="toastContainer" class="toast-container"></div>
+  <!-- Integrated Reader Modal -->
+  <div id="newsReaderModal" class="modal-reader" data-testid="news-reader-modal">
+    <div class="modal-content">
+      <div id="modalScrollProgress" class="modal-scroll-progress"></div>
+      <div class="modal-header-actions">
+        <button id="modalShareBtn" class="btn-share" data-testid="modal-share-btn" title="Copier le lien de l'article">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          Partager
+        </button>
+        <button id="closeReaderModal" class="close-modal" data-testid="close-reader-modal" aria-label="Fermer le lecteur">&times;</button>
+      </div>
+      <h3 id="modalTitle" data-testid="modal-title">Titre de l'article</h3>
+      <div class="modal-meta">
+        <span id="modalSource" data-testid="modal-source">Source</span>
+        <span id="modalDate" data-testid="modal-date">Date de publication</span>
+      </div>
+      <img id="modalImage" class="modal-img" src="" alt="Aperçu actualité" data-testid="modal-image">
+      <div id="modalBody" class="modal-body" data-testid="modal-body">
+        <!-- Rendu dynamique par JS -->
+      </div>
+      <a id="modalExternalLink" class="btn-external" href="#" target="_blank" rel="noopener noreferrer" data-testid="modal-external-link">Lire la source complète ↗</a>
+    </div>
+  </div>
 
-  <!-- Frontend JavaScript -->
-  <script src="js/app.js"></script>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" data-testid="toast-container"></div>
+
+  <!-- Frontend JavaScript loaded as ES6 Module -->
+  <script type="module" src="js/app.js"></script>
 
 </body>
 </html>
