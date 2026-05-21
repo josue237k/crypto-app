@@ -182,17 +182,25 @@ describe('GET /api/price/history', () => {
 // ─── GET /api/price/stream (SSE) ─────────────────────────────────────────────
 
 describe('GET /api/price/stream', () => {
-  it('should respond with SSE headers', async () => {
-    // Utiliser une requête avec timeout court pour ne pas bloquer les tests
-    const res = await request(app)
-      .get('/api/price/stream')
-      .timeout({ response: 500 })
-      .catch(err => err.response || err);
+  it('should call sseService.registerClient with req and res', () => {
+    // Tester directement le contrôleur pour éviter les connexions SSE persistantes
+    const priceController = require('../../src/controllers/priceController');
+    const sseService = require('../../src/services/sseService');
 
-    // Vérifier les headers SSE même si la connexion est toujours ouverte
-    if (res && res.headers) {
-      expect(res.headers['content-type']).toContain('text/event-stream');
-      expect(res.headers['cache-control']).toBe('no-cache');
-    }
+    const mockReq = { on: jest.fn() };
+    const mockRes = {
+      writeHead: jest.fn(),
+      write: jest.fn(),
+      end: jest.fn()
+    };
+
+    const registerSpy = jest.spyOn(sseService, 'registerClient').mockImplementation(() => {});
+
+    priceController.streamPrice(mockReq, mockRes);
+
+    expect(registerSpy).toHaveBeenCalledWith(mockReq, mockRes);
+
+    registerSpy.mockRestore();
   });
 });
+
