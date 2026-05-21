@@ -1,880 +1,121 @@
-# Suivi de Prix Crypto & Alertes - Plan d'Implémentation
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Construire une application Express + Mongoose + SSE ultra-propre et responsive pour suivre le cours du BTC/USDT en temps réel et gérer des alertes de prix.
-
-**Architecture:** Architecture MVC (Model-View-Controller) avec des services découplés pour le polling de l'API Binance et la gestion Server-Sent Events (SSE). Les données de prix utilisent un index TTL pour s'auto-nettoyer après 24 heures.
-
-**Tech Stack:** Node.js, Express, MongoDB, Mongoose, Jest, Supertest, SSE natif, HTML5/CSS3 moderne.
-
----
-
-### Task 1: Initialisation du Projet & Configuration
-
-**Files:**
-- Create: `package.json`
-- Create: `.env`
-- Create: `.gitignore`
-- Create: `src/config/db.js`
-- Test: `tests/config/db.test.js`
-
-- [ ] **Step 1: Créer le fichier package.json**
-
-```json
-{
-  "name": "crypto-alert-app",
-  "version": "1.0.0",
-  "description": "Application web de suivi BTC/USDT et alertes de prix en temps réel",
-  "main": "src/server.js",
-  "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "jest --runInBand --detectOpenHandles"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "mongoose": "^8.3.1"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0",
-    "nodemon": "^3.1.0",
-    "supertest": "^6.3.4"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "testTimeout": 10000
-  }
-}
-```
-
-- [ ] **Step 2: Créer le fichier de configuration d'environnement .env**
-
-```env
-PORT=3000
-MONGO_URI=mongodb://127.0.0.1:27017/crypto-alerts
-BINANCE_POLL_INTERVAL=5000
-```
-
-- [ ] **Step 3: Créer le fichier .gitignore**
-
-```text
-node_modules/
-.env
-.superpowers/
-.vscode/
-coverage/
-```
-
-- [ ] **Step 4: Créer la configuration de la base de données src/config/db.js**
-
-```javascript
-const mongoose = require('mongoose');
-
-async function connectDB() {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/crypto-alerts');
-    console.log(`MongoDB Connecté : ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    console.error(`Erreur de connexion MongoDB : ${error.message}`);
-    process.exit(1);
-  }
-}
-
-async function closeDB() {
-  await mongoose.connection.close();
-}
-
-module.exports = { connectDB, closeDB };
-```
-
-- [ ] **Step 5: Écrire le test unitaire pour la connexion tests/config/db.test.js**
-
-```javascript
-const { connectDB, closeDB } = require('../../src/config/db');
-const mongoose = require('mongoose');
-require('dotenv').config();
-
-describe('Database Connection', () => {
-  afterAll(async () => {
-    await closeDB();
-  });
-
-  it('should successfully connect to MongoDB', async () => {
-    const conn = await connectDB();
-    expect(conn).toBeDefined();
-    expect(mongoose.connection.readyState).toBe(1); // 1 = connected
-  });
-});
-```
-
-- [ ] **Step 6: Exécuter le test unitaire de connexion**
-
-Run: `npm install && npm run test tests/config/db.test.js`
-Expected: PASS
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add package.json .env .gitignore src/config/db.js tests/config/db.test.js
-git commit -m "feat: init project configurations and MongoDB connection"
-```
-
----
-
-### Task 2: Modèles Mongoose (Alert & PriceHistory)
-
-**Files:**
-- Create: `src/models/Alert.js`
-- Create: `src/models/PriceHistory.js`
-- Test: `tests/models/models.test.js`
-
-- [ ] **Step 1: Créer le modèle d'Alerte src/models/Alert.js**
-
-```javascript
-const mongoose = require('mongoose');
-
-const alertSchema = new mongoose.Schema({
-  targetPrice: {
-    type: Number,
-    required: [true, 'Le prix cible est obligatoire'],
-    min: [0, 'Le prix cible doit être positif']
-  },
-  type: {
-    type: String,
-    enum: {
-      values: ['above', 'below'],
-      message: 'Le type doit être "above" ou "below"'
-    },
-    required: [true, 'Le type d\'alerte est obligatoire']
-  },
-  status: {
-    type: String,
-    enum: ['active', 'triggered'],
-    default: 'active'
-  },
-  triggeredAt: {
-    type: Date,
-    default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-module.exports = mongoose.model('Alert', alertSchema);
-```
-
-- [ ] **Step 2: Créer le modèle d'Historique de Prix src/models/PriceHistory.js**
-
-```javascript
-const mongoose = require('mongoose');
-
-const priceHistorySchema = new mongoose.Schema({
-  price: {
-    type: Number,
-    required: [true, 'Le prix est obligatoire'],
-    min: [0, 'Le prix doit être positif']
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-    index: { expires: '24h' } // Supprime les prix vieux de plus de 24h
-  }
-});
-
-module.exports = mongoose.model('PriceHistory', priceHistorySchema);
-```
-
-- [ ] **Step 3: Écrire les tests unitaires pour les modèles tests/models/models.test.js**
-
-```javascript
-const mongoose = require('mongoose');
-const Alert = require('../../src/models/Alert');
-const PriceHistory = require('../../src/models/PriceHistory');
-const { connectDB, closeDB } = require('../../src/config/db');
-
-describe('Mongoose Models Spec', () => {
-  beforeAll(async () => {
-    await connectDB();
-  });
-
-  afterAll(async () => {
-    await Alert.deleteMany({});
-    await PriceHistory.deleteMany({});
-    await closeDB();
-  });
-
-  describe('Alert Model', () => {
-    it('should create an active alert successfully', async () => {
-      const alertData = { targetPrice: 65000, type: 'above' };
-      const alert = await Alert.create(alertData);
-      expect(alert.targetPrice).toBe(65000);
-      expect(alert.type).toBe('above');
-      expect(alert.status).toBe('active');
-      expect(alert.triggeredAt).toBeNull();
-    });
-
-    it('should fail if type is invalid', async () => {
-      const alertData = { targetPrice: 65000, type: 'invalid_type' };
-      await expect(Alert.create(alertData)).rejects.toThrow();
-    });
-
-    it('should fail if targetPrice is negative', async () => {
-      const alertData = { targetPrice: -500, type: 'above' };
-      await expect(Alert.create(alertData)).rejects.toThrow();
-    });
-  });
-
-  describe('PriceHistory Model', () => {
-    it('should save price history item successfully', async () => {
-      const priceItem = await PriceHistory.create({ price: 67100.5 });
-      expect(priceItem.price).toBe(67100.5);
-      expect(priceItem.timestamp).toBeDefined();
-    });
-  });
-});
-```
-
-- [ ] **Step 4: Exécuter les tests des modèles**
-
-Run: `npm run test tests/models/models.test.js`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/models/Alert.js src/models/PriceHistory.js tests/models/models.test.js
-git commit -m "feat: implement Alert and PriceHistory models with schema tests"
-```
-
----
-
-### Task 3: Le Service Server-Sent Events (sseService)
-
-**Files:**
-- Create: `src/services/sseService.js`
-- Test: `tests/services/sseService.test.js`
-
-- [ ] **Step 1: Créer src/services/sseService.js**
-
-```javascript
-let clients = [];
-
-function registerClient(req, res) {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Connection': 'keep-alive',
-    'Cache-Control': 'no-cache'
-  });
-
-  res.write(': connected\n\n');
-
-  clients.push(res);
-
-  req.on('close', () => {
-    clients = clients.filter(c => c !== res);
-  });
-
-  return res;
-}
-
-function broadcast(event, data) {
-  const formattedMessage = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  clients.forEach(res => res.write(formattedMessage));
-}
-
-function getClientsCount() {
-  return clients.length;
-}
-
-function clearClients() {
-  clients = [];
-}
-
-module.exports = {
-  registerClient,
-  broadcast,
-  getClientsCount,
-  clearClients
-};
-```
-
-- [ ] **Step 2: Créer le test unitaire tests/services/sseService.test.js**
-
-```javascript
-const sseService = require('../../src/services/sseService');
-
-describe('sseService Spec', () => {
-  let mockReq, mockRes;
-
-  beforeEach(() => {
-    sseService.clearClients();
-    mockReq = {
-      on: jest.fn()
-    };
-    mockRes = {
-      writeHead: jest.fn(),
-      write: jest.fn()
-    };
-  });
-
-  it('should register a client successfully', () => {
-    sseService.registerClient(mockReq, mockRes);
-    expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
-      'Content-Type': 'text/event-stream'
-    }));
-    expect(mockRes.write).toHaveBeenCalledWith(': connected\n\n');
-    expect(sseService.getClientsCount()).toBe(1);
-  });
-
-  it('should broadcast data to all registered clients', () => {
-    sseService.registerClient(mockReq, mockRes);
-    const data = { price: 68000 };
-    sseService.broadcast('priceUpdate', data);
-    expect(mockRes.write).toHaveBeenCalledWith(`event: priceUpdate\ndata: ${JSON.stringify(data)}\n\n`);
-  });
-
-  it('should clean up client on request close', () => {
-    let closeCallback;
-    mockReq.on = jest.fn((event, callback) => {
-      if (event === 'close') closeCallback = callback;
-    });
-
-    sseService.registerClient(mockReq, mockRes);
-    expect(sseService.getClientsCount()).toBe(1);
-
-    // Simulate close
-    if (closeCallback) closeCallback();
-    expect(sseService.getClientsCount()).toBe(0);
-  });
-});
-```
-
-- [ ] **Step 3: Exécuter les tests du service SSE**
-
-Run: `npm run test tests/services/sseService.test.js`
-Expected: PASS
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/services/sseService.js tests/services/sseService.test.js
-git commit -m "feat: implement sseService for live push broadcasts with unit tests"
-```
-
----
-
-### Task 4: Le Service Binance & Évaluateur d'Alertes (binanceService)
-
-**Files:**
-- Create: `src/services/binanceService.js`
-- Test: `tests/services/binanceService.test.js`
-
-- [ ] **Step 1: Créer src/services/binanceService.js**
-
-```javascript
-const Alert = require('../models/Alert');
-const PriceHistory = require('../models/PriceHistory');
-const sseService = require('./sseService');
-
-let pollIntervalId = null;
-
-async function fetchBinancePrice() {
-  try {
-    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-    if (!res.ok) {
-      throw new Error(`Erreur API Binance: ${res.status}`);
-    }
-    const data = await res.json();
-    return parseFloat(data.price);
-  } catch (error) {
-    console.error('Erreur de récupération Binance price:', error.message);
-    return null;
-  }
-}
-
-async function checkAndTriggerAlerts(currentPrice) {
-  try {
-    const activeAlerts = await Alert.find({ status: 'active' });
-    
-    for (const alert of activeAlerts) {
-      let shouldTrigger = false;
-      if (alert.type === 'above' && currentPrice >= alert.targetPrice) {
-        shouldTrigger = true;
-      } else if (alert.type === 'below' && currentPrice <= alert.targetPrice) {
-        shouldTrigger = true;
-      }
-
-      if (shouldTrigger) {
-        alert.status = 'triggered';
-        alert.triggeredAt = new Date();
-        await alert.save();
-        
-        // Diffuser en direct via SSE
-        sseService.broadcast('alertTriggered', alert);
-      }
-    }
-  } catch (error) {
-    console.error('Erreur lors de l\'évaluation des alertes:', error.message);
-  }
-}
-
-async function processPriceCycle() {
-  const currentPrice = await fetchBinancePrice();
-  if (currentPrice === null) return;
-
-  // 1. Enregistrer dans l'historique
-  const historyItem = await PriceHistory.create({ price: currentPrice });
-
-  // 2. Diffuser le prix aux clients
-  sseService.broadcast('priceUpdate', {
-    price: currentPrice,
-    timestamp: historyItem.timestamp
-  });
-
-  // 3. Évaluer les alertes actives
-  await checkAndTriggerAlerts(currentPrice);
-}
-
-function startPolling(intervalMs = 5000) {
-  if (pollIntervalId) return;
-  pollIntervalId = setInterval(processPriceCycle, intervalMs);
-  // Premier appel immédiat
-  processPriceCycle();
-}
-
-function stopPolling() {
-  if (pollIntervalId) {
-    clearInterval(pollIntervalId);
-    pollIntervalId = null;
-  }
-}
-
-module.exports = {
-  fetchBinancePrice,
-  checkAndTriggerAlerts,
-  processPriceCycle,
-  startPolling,
-  stopPolling
-};
-```
-
-- [ ] **Step 2: Créer le test unitaire tests/services/binanceService.test.js**
-
-```javascript
-const binanceService = require('../../src/services/binanceService');
-const Alert = require('../../src/models/Alert');
-const PriceHistory = require('../../src/models/PriceHistory');
-const sseService = require('../../src/services/sseService');
-const { connectDB, closeDB } = require('../../src/config/db');
-
-jest.mock('../../src/services/sseService');
-
-describe('binanceService Spec', () => {
-  beforeAll(async () => {
-    await connectDB();
-  });
-
-  afterAll(async () => {
-    await Alert.deleteMany({});
-    await PriceHistory.deleteMany({});
-    await closeDB();
-  });
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ symbol: 'BTCUSDT', price: '68500.50' })
-      })
-    );
-  });
-
-  it('should fetch the BTCUSDT price from Binance API correctly', async () => {
-    const price = await binanceService.fetchBinancePrice();
-    expect(price).toBe(68500.50);
-    expect(global.fetch).toHaveBeenCalledWith('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-  });
-
-  it('should successfully evaluate and trigger active alerts', async () => {
-    await Alert.deleteMany({});
-    
-    // Create alerts
-    const alert1 = await Alert.create({ targetPrice: 68000, type: 'above' });
-    const alert2 = await Alert.create({ targetPrice: 69000, type: 'above' });
-    const alert3 = await Alert.create({ targetPrice: 69000, type: 'below' });
-
-    await binanceService.checkAndTriggerAlerts(68500.00);
-
-    const triggered1 = await Alert.findById(alert1._id);
-    const triggered2 = await Alert.findById(alert2._id);
-    const triggered3 = await Alert.findById(alert3._id);
-
-    expect(triggered1.status).toBe('triggered');
-    expect(triggered1.triggeredAt).toBeDefined();
-    expect(triggered2.status).toBe('active'); // price is below targetPrice
-    expect(triggered3.status).toBe('triggered'); // price 68500 <= 69000
-    
-    expect(sseService.broadcast).toHaveBeenCalledWith('alertTriggered', expect.any(Object));
-  });
-});
-```
-
-- [ ] **Step 3: Exécuter les tests du service Binance**
-
-Run: `npm run test tests/services/binanceService.test.js`
-Expected: PASS
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/services/binanceService.js tests/services/binanceService.test.js
-git commit -m "feat: implement binance polling and alert engine with unit tests"
-```
-
----
-
-### Task 5: Contrôleurs HTTP et Routes API
-
-**Files:**
-- Create: `src/controllers/alertController.js`
-- Create: `src/controllers/priceController.js`
-- Create: `src/routes/alertRoutes.js`
-- Create: `src/routes/priceRoutes.js`
-- Test: `tests/controllers/api.test.js`
-
-- [ ] **Step 1: Créer le contrôleur des alertes src/controllers/alertController.js**
-
-```javascript
-const Alert = require('../models/Alert');
-
-exports.getAlerts = async (req, res) => {
-  try {
-    const alerts = await Alert.find().sort({ createdAt: -1 });
-    res.status(200).json(alerts);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.createAlert = async (req, res) => {
-  try {
-    const { targetPrice, type } = req.body;
-    if (!targetPrice || !type) {
-      return res.status(400).json({ error: 'targetPrice et type sont obligatoires' });
-    }
-
-    const alert = await Alert.create({ targetPrice, type });
-    res.status(201).json(alert);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-exports.deleteAlert = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const alert = await Alert.findByIdAndDelete(id);
-    if (!alert) {
-      return res.status(404).json({ error: 'Alerte non trouvée' });
-    }
-    res.status(200).json({ message: 'Alerte supprimée avec succès' });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-```
-
-- [ ] **Step 2: Créer le contrôleur de prix src/controllers/priceController.js**
-
-```javascript
-const PriceHistory = require('../models/PriceHistory');
-const sseService = require('../services/sseService');
-
-exports.getPriceHistory = async (req, res) => {
-  try {
-    const history = await PriceHistory.find().sort({ timestamp: -1 }).limit(100);
-    res.status(200).json(history.reverse());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getStream = (req, res) => {
-  sseService.registerClient(req, res);
-};
-```
-
-- [ ] **Step 3: Créer les routes des alertes src/routes/alertRoutes.js**
-
-```javascript
-const express = require('express');
-const router = express.Router();
-const alertController = require('../controllers/alertController');
-
-router.route('/')
-  .get(alertController.getAlerts)
-  .post(alertController.createAlert);
-
-router.route('/:id')
-  .delete(alertController.deleteAlert);
-
-module.exports = router;
-```
-
-- [ ] **Step 4: Créer les routes de prix src/routes/priceRoutes.js**
-
-```javascript
-const express = require('express');
-const router = express.Router();
-const priceController = require('../controllers/priceController');
-
-router.get('/history', priceController.getPriceHistory);
-router.get('/stream', priceController.getStream);
-
-module.exports = router;
-```
-
-- [ ] **Step 5: Écrire les tests d'intégration d'API tests/controllers/api.test.js**
-
-```javascript
-const request = require('supertest');
-const express = require('express');
-const { connectDB, closeDB } = require('../../src/config/db');
-const Alert = require('../../src/models/Alert');
-const PriceHistory = require('../../src/models/PriceHistory');
-
-const app = express();
-app.use(express.json());
-app.use('/api/alerts', require('../../src/routes/alertRoutes'));
-app.use('/api/price', require('../../src/routes/priceRoutes'));
-
-describe('API Integration Spec', () => {
-  beforeAll(async () => {
-    await connectDB();
-  });
-
-  afterAll(async () => {
-    await Alert.deleteMany({});
-    await PriceHistory.deleteMany({});
-    await closeDB();
-  });
-
-  describe('GET & POST /api/alerts', () => {
-    it('should create an alert via POST', async () => {
-      const res = await request(app)
-        .post('/api/alerts')
-        .send({ targetPrice: 70000, type: 'above' });
-      expect(res.statusCode).toBe(201);
-      expect(res.body.targetPrice).toBe(70000);
-      expect(res.body.status).toBe('active');
-    });
-
-    it('should list all alerts via GET', async () => {
-      const res = await request(app).get('/api/alerts');
-      expect(res.statusCode).toBe(200);
-      expect(res.body.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('GET /api/price/history', () => {
-    it('should return recent price history list', async () => {
-      await PriceHistory.create({ price: 65100.20 });
-      const res = await request(app).get('/api/price/history');
-      expect(res.statusCode).toBe(200);
-      expect(res.body.length).toBeGreaterThan(0);
-      expect(res.body[0].price).toBe(65100.20);
-    });
-  });
-});
-```
-
-- [ ] **Step 6: Exécuter les tests d'intégration d'API**
-
-Run: `npm run test tests/controllers/api.test.js`
-Expected: PASS
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/controllers/ src/routes/ tests/controllers/api.test.js
-git commit -m "feat: implement Alert & Price API routes with integration tests"
-```
-
----
-
-### Task 6: Assemblage du Serveur Express (server.js)
-
-**Files:**
-- Create: `src/server.js`
-
-- [ ] **Step 1: Créer le point d'entrée src/server.js**
-
-```javascript
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
-
-const { connectDB } = require('./config/db');
-const binanceService = require('./services/binanceService');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Connect Database
-connectDB();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Servir les fichiers statiques du dossier public
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Routes API
-app.use('/api/alerts', require('./routes/alertRoutes'));
-app.use('/api/price', require('./routes/priceRoutes'));
-
-// Démarre le polling Binance
-const pollInterval = parseInt(process.env.BINANCE_POLL_INTERVAL) || 5000;
-binanceService.startPolling(pollInterval);
-
-// Démarrer le serveur
-const server = app.listen(PORT, () => {
-  console.log(`Serveur démarré sur le port ${PORT}`);
-});
-
-module.exports = { app, server };
-```
-
-- [ ] **Step 2: Tester manuellement le lancement du serveur**
-
-Run: `node src/server.js`
-Expected: "MongoDB Connecté..." & "Serveur démarré sur le port 3000". Stopper le serveur après vérification (`Ctrl+C`).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/server.js
-git commit -m "feat: assemble server.js with database connection and binance polling"
-```
-
----
-
-### Task 7: Interface Frontend (HTML, CSS & JS Premium)
-
-**Files:**
-- Create: `src/public/index.html`
-- Create: `src/public/css/style.css`
-- Create: `src/public/js/app.js`
-
-- [ ] **Step 1: Créer le fichier HTML public src/public/index.html**
-
-```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bitcoin Tracker Pro - Suivi & Alertes en Direct</title>
-  <!-- Google Fonts Outfit & Inter -->
+  <meta name="description" content="Tableau de bord en temps réel pour suivre le cours du BTC/USDT et gérer des alertes de prix personnalisées.">
+  <title>CryptoAlert — Suivi BTC/USDT en Temps Réel</title>
+
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₿</text></svg>">
+
+  <!-- Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
   <div class="app-container">
+
+    <!-- ─── Header ─────────────────────────────────────────────────────── -->
     <header class="app-header">
       <div class="logo-area">
-        <span class="logo-icon">⚡</span>
-        <h1>BTC/USDT Tracker</h1>
+        <span class="logo-icon">₿</span>
+        <h1>CryptoAlert</h1>
       </div>
-      <div class="status-badge" id="connStatus">
+      <div id="connStatus" class="status-badge disconnected">
         <span class="status-dot"></span>
-        <span class="status-text">Connexion...</span>
+        <span class="status-text">CONNEXION…</span>
       </div>
     </header>
 
+    <!-- ─── Dashboard Grid ─────────────────────────────────────────────── -->
     <main class="dashboard-grid">
-      <!-- HERO AREA: Price display -->
-      <section class="card hero-card">
-        <div class="card-label">COURS ACTUEL (BINANCE)</div>
-        <div class="price-display" id="btcPrice">$0.00</div>
-        <div class="trend-indicator" id="btcTrend">
+
+      <!-- Hero Card — Live Price -->
+      <section class="card hero-card" aria-label="Prix actuel du BTC">
+        <span class="card-label">BTC / USDT</span>
+        <div id="btcPrice" class="price-display">$—</div>
+        <div id="btcTrend" class="trend-indicator neutral">
           <span class="trend-arrow">─</span>
           <span class="trend-pct">0.00%</span>
         </div>
       </section>
 
-      <!-- LIVE CHART -->
-      <section class="card chart-card">
+      <!-- Chart Card — SVG Line Chart -->
+      <section class="card chart-card" aria-label="Graphique de prix">
         <div class="card-header">
-          <h3>Graphique en direct</h3>
-          <span class="timeframe">24 Dernières Heures</span>
+          <h3>Évolution du Prix</h3>
+          <span class="timeframe">DERNIÈRES 24H</span>
         </div>
         <div class="chart-container">
           <svg id="priceChart" viewBox="0 0 500 200" preserveAspectRatio="none">
             <defs>
-              <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stop-color="var(--purple-neon)" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="var(--purple-neon)" stop-opacity="0"/>
+              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="hsl(263, 80%, 58%)" stop-opacity="0.02"/>
               </linearGradient>
             </defs>
-            <path id="chartFill" d="" fill="url(#chartGrad)"></path>
-            <path id="chartLine" d="" fill="none" stroke="var(--purple-neon)" stroke-width="2"></path>
+            <path id="chartFill" fill="url(#chartGradient)" d=""/>
+            <path id="chartLine" fill="none" stroke="hsl(263, 80%, 58%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d=""/>
           </svg>
         </div>
       </section>
 
-      <!-- ALERT FORM -->
-      <section class="card form-card">
-        <h3>Créer une Alerte</h3>
-        <form id="alertForm">
+      <!-- Form Card — Create New Alert -->
+      <section class="card form-card" aria-label="Créer une alerte">
+        <h3>Nouvelle Alerte</h3>
+        <form id="alertForm" autocomplete="off">
+
           <div class="form-group">
-            <label>Type de Déclencheur</label>
+            <label for="triggerType">Type de déclencheur</label>
             <div class="trigger-toggle">
-              <button type="button" class="btn-toggle active" data-type="above">Au-dessus (&gt;)</button>
-              <button type="button" class="btn-toggle" data-type="below">En-dessous (&lt;)</button>
+              <button type="button" class="btn-toggle active" data-type="above">▲ Hausse</button>
+              <button type="button" class="btn-toggle" data-type="below">▼ Baisse</button>
             </div>
           </div>
+
           <div class="form-group">
-            <label for="targetPrice">Prix Cible (USDT)</label>
-            <input type="number" id="targetPrice" placeholder="Ex: 68500" required min="0" step="any">
+            <label for="targetPrice">Prix cible (USD)</label>
+            <input type="number" id="targetPrice" placeholder="ex: 70000" min="0" step="any" required>
           </div>
-          <button type="submit" class="btn-submit">Activer l'Alerte</button>
+
+          <button type="submit" class="btn-submit">Créer l'alerte</button>
         </form>
       </section>
 
-      <!-- ALERTS MANAGER -->
-      <section class="card alerts-card">
-        <h3>Gestionnaire d'Alertes</h3>
+      <!-- Alerts Card — Active & Triggered Lists -->
+      <section class="card alerts-card" aria-label="Liste des alertes">
+        <h3>Mes Alertes</h3>
         <div class="alerts-sections">
-          <div class="alert-column">
-            <h4>Actives</h4>
-            <ul class="alert-list" id="activeAlertList">
+          <div>
+            <h4>🟢 Actives</h4>
+            <ul id="activeAlertList" class="alert-list">
               <li class="empty-msg">Aucune alerte active</li>
             </ul>
           </div>
-          <div class="alert-column">
-            <h4>Historique</h4>
-            <ul class="alert-list" id="triggeredAlertList">
+          <div>
+            <h4>🔔 Déclenchées</h4>
+            <ul id="triggeredAlertList" class="alert-list">
               <li class="empty-msg">Aucune alerte déclenchée</li>
             </ul>
           </div>
         </div>
       </section>
+
     </main>
+
   </div>
 
-  <!-- TOAST NOTIFICATION CONTAINER -->
-  <div class="toast-container" id="toastContainer"></div>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Frontend JavaScript -->
+  <script src="js/app.js"></script>
+
 </body>
 </html>

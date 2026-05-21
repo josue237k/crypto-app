@@ -1,7 +1,7 @@
 const PriceHistory = require('../models/PriceHistory');
 const Alert = require('../models/Alert');
 const sseService = require('./sseService');
-require('dotenv').config();
+// dotenv is loaded once at the entry point (server.js)
 
 let intervalId = null;
 
@@ -51,7 +51,9 @@ async function pollBinancePrice() {
         await alert.save();
 
         // Diffusion immédiate de l'alerte déclenchée
-        sseService.broadcast('alertTriggered', alert);
+        // Diffusion immédiate de l'alerte déclenchée (plain object pour éviter
+        // de sérialiser les internals Mongoose comme __v)
+        sseService.broadcast('alertTriggered', alert.toObject());
       }
     }
 
