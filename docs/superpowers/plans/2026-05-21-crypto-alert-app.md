@@ -19,13 +19,13 @@
 - Create: `src/config/db.js`
 - Test: `tests/config/db.test.js`
 
-- [ ] **Step 1: Créer le fichier package.json**
-- [ ] **Step 2: Créer le fichier de configuration d'environnement .env**
-- [ ] **Step 3: Créer le fichier .gitignore**
-- [ ] **Step 4: Créer la configuration de la base de données src/config/db.js**
-- [ ] **Step 5: Écrire le test unitaire pour la connexion tests/config/db.test.js**
-- [ ] **Step 6: Exécuter le test unitaire de connexion**
-- [ ] **Step 7: Commit**
+- [x] **Step 1: Créer le fichier package.json**
+- [x] **Step 2: Créer le fichier de configuration d'environnement .env**
+- [x] **Step 3: Créer le fichier .gitignore**
+- [x] **Step 4: Créer la configuration de la base de données src/config/db.js**
+- [x] **Step 5: Écrire le test unitaire pour la connexion tests/config/db.test.js**
+- [x] **Step 6: Exécuter le test unitaire de connexion**
+- [x] **Step 7: Commit**
 
 ---
 
@@ -36,11 +36,11 @@
 - Create: `src/models/PriceHistory.js`
 - Test: `tests/models/models.test.js`
 
-- [ ] **Step 1: Créer le modèle d'Alerte src/models/Alert.js**
-- [ ] **Step 2: Créer le modèle d'Historique de Prix src/models/PriceHistory.js**
-- [ ] **Step 3: Écrire les tests unitaires pour les modèles tests/models/models.test.js**
-- [ ] **Step 4: Exécuter les tests des modèles**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Créer le modèle d'Alerte src/models/Alert.js**
+- [x] **Step 2: Créer le modèle d'Historique de Prix src/models/PriceHistory.js**
+- [x] **Step 3: Écrire les tests unitaires pour les modèles tests/models/models.test.js**
+- [x] **Step 4: Exécuter les tests des modèles**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -50,10 +50,10 @@
 - Create: `src/services/sseService.js`
 - Test: `tests/services/sseService.test.js`
 
-- [ ] **Step 1: Créer src/services/sseService.js**
-- [ ] **Step 2: Créer le test unitaire tests/services/sseService.test.js**
-- [ ] **Step 3: Exécuter les tests du service SSE**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Créer src/services/sseService.js**
+- [x] **Step 2: Créer le test unitaire tests/services/sseService.test.js**
+- [x] **Step 3: Exécuter les tests du service SSE**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -63,10 +63,10 @@
 - Create: `src/services/binanceService.js`
 - Test: `tests/services/binanceService.test.js`
 
-- [ ] **Step 1: Créer src/services/binanceService.js**
-- [ ] **Step 2: Créer le test unitaire tests/services/binanceService.test.js**
-- [ ] **Step 3: Exécuter les tests du service Binance**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Créer src/services/binanceService.js**
+- [x] **Step 2: Créer le test unitaire tests/services/binanceService.test.js**
+- [x] **Step 3: Exécuter les tests du service Binance**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -79,13 +79,13 @@
 - Create: `src/routes/priceRoutes.js`
 - Test: `tests/controllers/api.test.js`
 
-- [ ] **Step 1: Créer le contrôleur des alertes src/controllers/alertController.js**
-- [ ] **Step 2: Créer le contrôleur de prix src/controllers/priceController.js**
-- [ ] **Step 3: Créer les routes des alertes src/routes/alertRoutes.js**
-- [ ] **Step 4: Créer les routes de prix src/routes/priceRoutes.js**
-- [ ] **Step 5: Écrire les tests d'intégration d'API tests/controllers/api.test.js**
-- [ ] **Step 6: Exécuter les tests d'intégration d'API**
-- [ ] **Step 7: Commit**
+- [x] **Step 1: Créer le contrôleur des alertes src/controllers/alertController.js**
+- [x] **Step 2: Créer le contrôleur de prix src/controllers/priceController.js**
+- [x] **Step 3: Créer les routes des alertes src/routes/alertRoutes.js**
+- [x] **Step 4: Créer les routes de prix src/routes/priceRoutes.js**
+- [x] **Step 5: Écrire les tests d'intégration d'API tests/controllers/api.test.js**
+- [x] **Step 6: Exécuter les tests d'intégration d'API**
+- [x] **Step 7: Commit**
 
 ---
 
@@ -94,9 +94,9 @@
 **Files:**
 - Create: `src/server.js`
 
-- [ ] **Step 1: Créer le point d'entrée src/server.js**
-- [ ] **Step 2: Tester manuellement le lancement du serveur**
-- [ ] **Step 3: Commit**
+- [x] **Step 1: Créer le point d'entrée src/server.js**
+- [x] **Step 2: Tester manuellement le lancement du serveur**
+- [x] **Step 3: Commit**
 
 ---
 
@@ -107,6 +107,6 @@
 - Create: `src/public/css/style.css`
 - Create: `src/public/js/app.js`
 
-- [ ] **Step 1: Créer le fichier HTML public src/public/index.html**
-- [ ] **Step 2: Créer le fichier CSS public src/public/css/style.css**
-- [ ] **Step 3: Créer le fichier JS public src/public/js/app.js**
+- [x] **Step 1: Créer le fichier HTML public src/public/index.html**
+- [x] **Step 2: Créer le fichier CSS public src/public/css/style.css**
+- [x] **Step 3: Créer le fichier JS public src/public/js/app.js**
