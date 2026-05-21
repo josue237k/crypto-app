@@ -29,8 +29,12 @@ function setupTriggerToggle() {
   const toggleButtons = document.querySelectorAll('.btn-toggle');
   toggleButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      toggleButtons.forEach(b => b.classList.remove('active'));
+      toggleButtons.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       selectedTriggerType = btn.dataset.type;
     });
   });

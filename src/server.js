@@ -52,6 +52,9 @@ async function startServer() {
   }
 }
 
-startServer();
+// Démarrer uniquement si exécuté directement (pas importé par les tests)
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
