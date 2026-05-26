@@ -21,6 +21,7 @@ graph TD
 - **Multi-Stage Dockerfile** : Construction de l'image de conteneur optimisée, isolant les étapes d'installation et s'exécutant sous un utilisateur système non root (`appuser`) pour une sécurité maximale.
 - **Render Infrastructure-as-Code (`render.yaml`)** : Configuration automatisée déclarative pour un déploiement instantané en un clic.
   9yFV6HdchhMOgcRc
+  tchoupajosue_db_user
 
 ---
 
