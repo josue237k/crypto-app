@@ -25,7 +25,9 @@ const CORE_COINS = new Set(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
 async function pollBinancePrice() {
   try {
     const symbolsQuery = TARGET_COINS.map(coin => `"${coin}USDT"`).join(',');
-    const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
+    // Render hosts in the USA where standard api.binance.com is geoblocked.
+    // We use api-g.binance.com (or api.binance.us or a public proxy/alternative domain) to avoid 451.
+    const url = `https://api-g.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
     
     const response = await fetch(url);
     if (!response.ok) {
