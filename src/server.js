@@ -56,6 +56,10 @@ app.use('/api/news', newsRoutes);
 
 // Fichiers statiques (frontend)
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve index.html for root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Centralized error handling middleware
 app.use((err, req, res, next) => {
