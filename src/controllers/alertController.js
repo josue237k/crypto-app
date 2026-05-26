@@ -14,7 +14,7 @@ const { TARGET_COINS } = require('../services/binanceService');
 async function getAllAlerts(req, res, next) {
   try {
     const filter = {};
-    if (req.query.symbol) {
+    if (req.query.symbol !== undefined) {
       if (typeof req.query.symbol !== 'string' || req.query.symbol.trim() === '') {
         return res.status(400).json({ error: 'Le filtre de symbole doit être une chaîne non vide.' });
       }
@@ -36,13 +36,15 @@ async function createAlert(req, res, next) {
   try {
     const { symbol, targetPrice, type } = req.body;
 
-    const sym = symbol !== undefined && symbol !== null ? symbol : 'BTC';
+    if (symbol === undefined || symbol === null) {
+      return res.status(400).json({ error: 'Le symbole est requis.' });
+    }
 
-    if (typeof sym !== 'string' || sym.trim() === '') {
+    if (typeof symbol !== 'string' || symbol.trim() === '') {
       return res.status(400).json({ error: 'Le symbole doit être une chaîne non vide.' });
     }
 
-    const upperSym = sym.toUpperCase();
+    const upperSym = symbol.toUpperCase();
     if (!TARGET_COINS.includes(upperSym)) {
       return res.status(400).json({ error: 'Symbole non supporté.' });
     }

@@ -217,7 +217,8 @@ describe('Mongoose Models Unit Tests', () => {
       const timestampPath = PriceHistory.schema.path('timestamp');
       
       expect(timestampPath.options.index).toBeDefined();
-      expect(timestampPath.options.index.expires).toBe('24h');
+      // Mongoose TTL requires seconds (number), 86400 = 24h
+      expect(timestampPath.options.index.expires).toBe(86400);
     });
   });
 });

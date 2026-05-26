@@ -15,10 +15,12 @@ graph TD
 ```
 
 ### Améliorations de Sécurité et Performance Implémentées :
+
 - **Helmet** : Sécurise les en-têtes HTTP de l'application Express et applique une politique stricte de sécurité des contenus (CSP), limitant les communications aux domaines autorisés (Binance API/Stream, Cointelegraph, Google Fonts).
 - **Compression** : Gzip compression appliquée sur toutes les réponses HTTP, accélérant le chargement initial des ressources statiques côté client.
 - **Multi-Stage Dockerfile** : Construction de l'image de conteneur optimisée, isolant les étapes d'installation et s'exécutant sous un utilisateur système non root (`appuser`) pour une sécurité maximale.
 - **Render Infrastructure-as-Code (`render.yaml`)** : Configuration automatisée déclarative pour un déploiement instantané en un clic.
+  9yFV6HdchhMOgcRc
 
 ---
 
@@ -82,9 +84,11 @@ https://kimmich-crypto-news.onrender.com
 ```
 
 ### Option A : Utiliser le sous-domaine automatique de Render (Recommandé & Instantané)
+
 - C'est l'option la plus simple, 100% gratuite et sécurisée. Le certificat SSL Let's Encrypt est géré et renouvelé automatiquement par Render sans aucune action de votre part.
 
 ### Option B : Associer un sous-domaine gratuit DuckDNS (DNS Personnalisé)
+
 1. **Créer le Sous-domaine DuckDNS :**
    - Connectez-vous sur [DuckDNS](https://www.duckdns.org/) (via GitHub ou Google).
    - Saisissez le sous-domaine souhaité `kimmich-crypto-news` et cliquez sur **Add Domain**.
@@ -102,6 +106,7 @@ https://kimmich-crypto-news.onrender.com
 ## 🔍 Étape 4 : Vérification et Fonctionnement en Direct
 
 ### Valider la Sécurité et les En-têtes CSP :
+
 1. Ouvrez les outils de développement de votre navigateur (F12) et accédez à l'onglet **Réseau** (Network).
 2. Inspectez les en-têtes HTTP de la page d'accueil de votre site déployé.
 3. Vérifiez la présence de l'en-tête **Content-Encoding: gzip** (qui valide l'activation de `compression`).
@@ -112,6 +117,7 @@ https://kimmich-crypto-news.onrender.com
    - Google Fonts (`https://fonts.gstatic.com`)
 
 ### Vérifier le Flux Temps Réel :
+
 1. Accédez à la vue **Tableau de bord**.
 2. Vérifiez que la pastille de connexion affiche **CONNECTED / EN DIRECT** en vert brillant.
 3. Observez la courbe du graphique SVG se mettre à jour en direct toutes les 5 secondes sans latence, validant le bon fonctionnement asynchrone des flux SSE en production.

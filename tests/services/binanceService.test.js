@@ -62,6 +62,7 @@ describe('Binance Service Unit Tests', () => {
   let broadcastSpy;
 
   beforeAll(async () => {
+    process.env.MONGO_DB_NAME = 'crypto-alerts-test';
     await connectDB();
   });
 

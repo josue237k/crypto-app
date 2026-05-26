@@ -16,7 +16,7 @@ const priceHistorySchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now,
-    index: { expires: '24h' }
+    index: { expires: 86400 } // TTL : 24h en secondes
   }
 });
 

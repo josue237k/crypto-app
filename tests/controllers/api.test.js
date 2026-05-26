@@ -22,6 +22,7 @@ app.use('/api/price', priceRoutes);
 // ─── Setup / Teardown ─────────────────────────────────────────────────────────
 
 beforeAll(async () => {
+  process.env.MONGO_DB_NAME = 'crypto-alerts-test';
   await connectDB();
 });
 
@@ -64,10 +65,11 @@ describe('POST /api/alerts', () => {
   it('should create a new alert and return 201 with the created document', async () => {
     const res = await request(app)
       .post('/api/alerts')
-      .send({ targetPrice: 65000, type: 'above' });
+      .send({ symbol: 'BTC', targetPrice: 65000, type: 'above' });
 
     expect(res.statusCode).toBe(201);
     expect(res.body._id).toBeDefined();
+    expect(res.body.symbol).toBe('BTC');
     expect(res.body.targetPrice).toBe(65000);
     expect(res.body.type).toBe('above');
     expect(res.body.status).toBe('active');

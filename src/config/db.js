@@ -8,10 +8,9 @@ require('dotenv').config();
 const connectDB = async () => {
   try {
     let mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/crypto-alerts';
-    if (process.env.NODE_ENV === 'test') {
-      mongoUri = process.env.MONGO_URI_TEST || 'mongodb://127.0.0.1:27017/crypto-alerts-test';
-    }
-    const conn = await mongoose.connect(mongoUri);
+    const conn = await mongoose.connect(mongoUri, {
+      dbName: process.env.MONGO_DB_NAME || 'crypto-alerts'
+    });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return conn;
   } catch (error) {
