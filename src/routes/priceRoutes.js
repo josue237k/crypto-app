@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPriceHistory, streamPrice } = require('../controllers/priceController');
+const binanceService = require('../services/binanceService');
 
 // GET /api/price/history → Historique des 100 derniers prix
 router.get('/history', getPriceHistory);
