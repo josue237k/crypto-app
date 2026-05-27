@@ -26,8 +26,8 @@ async function pollBinancePrice() {
   try {
     const symbolsQuery = TARGET_COINS.map(coin => `"${coin}USDT"`).join(',');
     // Render hosts in the USA where standard api.binance.com is geoblocked.
-    // We use api-g.binance.com (or api.binance.us or a public proxy/alternative domain) to avoid 451.
-    const url = `https://api-g.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
+    // We use api-gcp.binance.com (using Google Cloud CDN) which is not geoblocked.
+    const url = `https://api-gcp.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
     
     const response = await fetch(url);
     if (!response.ok) {
