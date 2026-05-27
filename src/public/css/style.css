@@ -1786,3 +1786,27 @@ body.light-theme .nav-tab.active {
   }
 }
 
+/* ─── Premium Sparklines inside tables ────────────────────────────────── */
+.sparkline-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 60px;
+  height: 30px;
+  transition: var(--transition-smooth);
+}
+
+.sparkline-svg {
+  transition: var(--transition-smooth);
+}
+
+.market-row:hover .sparkline-svg {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 6px var(--purple-neon)) !important;
+}
+
+.market-row:hover .sparkline-svg path {
+  stroke: var(--purple-neon) !important;
+}
+
+

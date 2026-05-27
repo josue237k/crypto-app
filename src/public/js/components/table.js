@@ -43,6 +43,32 @@ export function renderTicker(tickers) {
   });
 }
 
+function generateSparklineSVG(ticker) {
+  const change = ticker.changePercent;
+  const isUp = change >= 0;
+  const strokeColor = isUp ? 'var(--emerald-neon)' : 'var(--corail-neon)';
+  
+  const seed = ticker.symbol.charCodeAt(0) + ticker.symbol.charCodeAt(ticker.symbol.length - 1);
+  const points = [];
+  const count = 7;
+  
+  for (let i = 0; i < count; i++) {
+    const x = (i / (count - 1)) * 60; // 60px width
+    const rand = Math.sin(seed + i * 2.3) * 6;
+    const trend = (i / (count - 1)) * change * 0.8;
+    const y = 15 - rand - trend;
+    points.push(`${x},${Math.max(2, Math.min(28, y))}`);
+  }
+  
+  const pathData = `M ${points.join(' L ')}`;
+  
+  return `
+    <svg class="sparkline-svg" width="60" height="30" viewBox="0 0 60 30" style="overflow: visible; filter: drop-shadow(0 0 4px ${isUp ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'});">
+      <path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+}
+
 export function renderTable(tickers, selectedSymbol, onSelectCallback) {
   const tableBody = document.getElementById('marketTableBody');
   if (!tableBody) return;
@@ -67,7 +93,7 @@ export function renderTable(tickers, selectedSymbol, onSelectCallback) {
   tableBody.innerHTML = '';
 
   if (filteredList.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="5" class="empty-msg">Aucune donnée de marché disponible</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="6" class="empty-msg">Aucune donnée de marché disponible</td></tr>`;
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     if (loadMoreBtn) loadMoreBtn.style.display = 'none';
     return;
@@ -131,6 +157,8 @@ export function renderTable(tickers, selectedSymbol, onSelectCallback) {
     // Find the rank in the entire volume-sorted tickers list
     const rank = tickersList.indexOf(ticker) + 1;
 
+    const sparklineHTML = generateSparklineSVG(ticker);
+
     tr.innerHTML = `
       <td>
         <div class="coin-info">
@@ -141,6 +169,9 @@ export function renderTable(tickers, selectedSymbol, onSelectCallback) {
       <td class="price-cell ${pulseClass}">${formattedPrice}</td>
       <td class="change-cell ${changeClass}">${changeSign}${ticker.changePercent.toFixed(2)}%</td>
       <td class="high-low-cell">${formattedHigh} / ${formattedLow}</td>
+      <td>
+        <div class="sparkline-wrapper">${sparklineHTML}</div>
+      </td>
       <td>
         <button class="btn-select-coin">${isSelected ? 'Actif' : 'Analyser'}</button>
       </td>
