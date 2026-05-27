@@ -1,21 +1,22 @@
 /* Custom Variables & Root Settings */
 :root {
-  --bg-deep: hsl(240, 10%, 4%);
-  --bg-card: hsl(240, 6%, 10%);
-  --bg-input: hsl(240, 6%, 14%);
-  --border-subtle: hsl(240, 5%, 18%);
-  --border-focus: hsl(240, 5%, 35%);
-  --text-main: hsl(240, 5%, 90%);
-  --text-muted: hsl(240, 5%, 60%);
+  --bg-deep: hsl(222, 47%, 4%);
+  --bg-card: hsla(222, 47%, 8%, 0.85);
+  --bg-input: hsla(222, 47%, 12%, 0.95);
+  --border-subtle: hsla(222, 40%, 20%, 0.5);
+  --border-focus: hsla(263, 80%, 58%, 0.6);
+  --text-main: hsl(210, 40%, 98%);
+  --text-muted: hsl(215, 20%, 65%);
   
-  --emerald-neon: hsl(142, 70%, 45%);
-  --corail-neon: hsl(0, 84%, 60%);
-  --purple-neon: hsl(263, 80%, 58%);
+  --emerald-neon: hsl(150, 84%, 44%);
+  --corail-neon: hsl(354, 84%, 57%);
+  --purple-neon: hsl(263, 85%, 62%);
+  --amber-neon: hsl(38, 92%, 50%);
   
   --font-display: 'Outfit', sans-serif;
   --font-sans: 'Inter', sans-serif;
-  --shadow-premium: 0 8px 30px rgba(0, 0, 0, 0.5);
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-premium: 0 12px 40px -10px rgba(0, 0, 0, 0.7);
+  --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Global resets */
@@ -117,6 +118,8 @@ body {
 /* Premium Card wrapper */
 .card {
   background-color: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 24px;
@@ -126,7 +129,12 @@ body {
 
 .card:hover {
   border-color: var(--border-focus);
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.005);
+  box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.8), 0 0 15px rgba(139, 92, 246, 0.15);
+}
+
+body.light-theme .card:hover {
+  box-shadow: 0 20px 40px -15px rgba(20, 25, 40, 0.1), 0 0 15px rgba(139, 92, 246, 0.05);
 }
 
 /* Dashboard Component Spans */
@@ -618,14 +626,14 @@ a:focus:not(:focus-visible) {
 
 /* ─── Light Theme Variable Overrides ────────────────────────────────── */
 body.light-theme {
-  --bg-deep: hsl(240, 20%, 97%);
-  --bg-card: hsl(0, 0%, 100%);
-  --bg-input: hsl(240, 15%, 93%);
-  --border-subtle: hsl(240, 10%, 86%);
-  --border-focus: hsl(240, 10%, 65%);
-  --text-main: hsl(240, 12%, 12%);
-  --text-muted: hsl(240, 8%, 45%);
-  --shadow-premium: 0 10px 40px rgba(0, 0, 0, 0.05);
+  --bg-deep: hsl(210, 30%, 96%);
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-input: hsl(210, 20%, 92%);
+  --border-subtle: rgba(210, 20%, 80%, 0.5);
+  --border-focus: hsla(263, 80%, 58%, 0.4);
+  --text-main: hsl(222, 47%, 10%);
+  --text-muted: hsl(215, 16%, 42%);
+  --shadow-premium: 0 12px 35px -10px rgba(20, 25, 40, 0.08);
 }
 
 body.light-theme .btn-toggle {
