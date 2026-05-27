@@ -24,10 +24,11 @@ const CORE_COINS = new Set(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
  */
 async function pollBinancePrice() {
   try {
-    const symbolsQuery = TARGET_COINS.map(coin => `"${coin}USDT"`).join(',');
+    const symbolsQuery = JSON.stringify(TARGET_COINS.map(coin => `${coin}USDT`));
     // Render hosts in the USA where standard api.binance.com and api-gcp.binance.com are geoblocked.
     // data-api.binance.vision is the official, specialized public market endpoint which has no geo-blocking for datacenters.
-    const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
+    // The symbols array MUST be properly URL-encoded as a JSON string to be recognized.
+    const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsQuery)}`;
     
     const response = await fetch(url);
     if (!response.ok) {
