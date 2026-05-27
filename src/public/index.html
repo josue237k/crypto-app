@@ -171,11 +171,22 @@
         <section class="card sentiment-card" aria-label="Baromètre du Sentiment Global" data-testid="sentiment-card">
           <h3>Sentiment du Marché</h3>
           <div class="sentiment-gauge-wrapper">
-            <div class="gauge-bar-container">
-              <div id="sentimentGaugeFill" class="gauge-bar-fill" style="width: 50%;"></div>
-            </div>
-            <div class="gauge-labels">
+            <svg class="radial-gauge" viewBox="0 0 100 55" width="100%">
+              <!-- Background Arch -->
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="var(--border-subtle)" stroke-width="8" stroke-linecap="round" />
+              <!-- Colored Segments -->
+              <path d="M 10 50 A 40 40 0 0 1 36.6 23.4" fill="none" stroke="var(--corail-neon)" stroke-width="8" stroke-linecap="round" />
+              <path d="M 36.6 23.4 A 40 40 0 0 1 63.4 23.4" fill="none" stroke="var(--amber-neon)" stroke-width="8" />
+              <path d="M 63.4 23.4 A 40 40 0 0 1 90 50" fill="none" stroke="var(--emerald-neon)" stroke-width="8" stroke-linecap="round" />
+              
+              <!-- Indicator Needle -->
+              <line id="needle" x1="50" y1="50" x2="50" y2="15" stroke="var(--text-main)" stroke-width="2.5" stroke-linecap="round" style="transform-origin: 50px 50px; transform: rotate(0deg); transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);" />
+              <!-- Center Pin -->
+              <circle cx="50" cy="50" r="4.5" fill="var(--purple-neon)" />
+            </svg>
+            <div class="gauge-details">
               <span class="label-bearish">🔴 Bearish (<span id="bearishPct">50%</span>)</span>
+              <span class="label-score" id="sentimentValueText">50 / 100</span>
               <span class="label-bullish">🟢 Bullish (<span id="bullishPct">50%</span>)</span>
             </div>
           </div>

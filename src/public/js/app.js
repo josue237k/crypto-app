@@ -229,13 +229,19 @@ function updateGlobalSentiment() {
   const bullishPct = Math.round((bullishCount / top50.length) * 100);
   const bearishPct = 100 - bullishPct;
 
-  const gaugeFill = document.getElementById('sentimentGaugeFill');
+  const needle = document.getElementById('needle');
+  const sentimentValueEl = document.getElementById('sentimentValueText');
   const bullishPctEl = document.getElementById('bullishPct');
   const bearishPctEl = document.getElementById('bearishPct');
   const summaryTextEl = document.getElementById('sentimentSummaryText');
 
-  if (gaugeFill) {
-    gaugeFill.style.width = `${bullishPct}%`;
+  if (needle) {
+    // Map bullishPct (0 to 100) to angle (-90deg to +90deg)
+    const angle = -90 + (bullishPct / 100) * 180;
+    needle.style.transform = `rotate(${angle}deg)`;
+  }
+  if (sentimentValueEl) {
+    sentimentValueEl.textContent = `${bullishPct} / 100`;
   }
   if (bullishPctEl) bullishPctEl.textContent = `${bullishPct}%`;
   if (bearishPctEl) bearishPctEl.textContent = `${bearishPct}%`;
