@@ -13,4 +13,9 @@ router.get('/history', getPriceHistory);
 // GET /api/price/stream  → Flux SSE en temps réel
 router.get('/stream', streamPrice);
 
+// GET /api/price/latest  → Derniers tickers en mémoire
+router.get('/latest', (req, res) => {
+  res.json(binanceService.getLatestTickers());
+});
+
 module.exports = router;

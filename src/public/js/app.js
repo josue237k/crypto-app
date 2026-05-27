@@ -38,12 +38,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fetch initial coin data
   fetchInitialCoinData(selectedSymbol);
 
+  // Fetch all latest tickers instantly to avoid waiting for the first SSE tick
+  fetchLatestTickers();
+
   // Initialize client-side hash router
   initRouter();
 
   // Connect to live SSE stream
   connectSSE();
 });
+
+async function fetchLatestTickers() {
+  try {
+    const res = await fetch('/api/price/latest');
+    if (res.ok) {
+      const tickers = await res.json();
+      Object.keys(tickers).forEach(symbol => {
+        marketTickers[symbol] = tickers[symbol];
+      });
+      renderTicker(marketTickers);
+      renderTable(marketTickers, selectedSymbol, handleCoinSelect);
+      updateGlobalSentiment();
+      updateConverterDisplay();
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des derniers tickers:', error);
+  }
+}
 
 // ─── Setup Form & Search Inputs Helpers ──────────────────────────────────────
 function setupSearchInput() {
