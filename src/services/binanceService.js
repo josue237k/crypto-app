@@ -25,9 +25,9 @@ const CORE_COINS = new Set(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
 async function pollBinancePrice() {
   try {
     const symbolsQuery = TARGET_COINS.map(coin => `"${coin}USDT"`).join(',');
-    // Render hosts in the USA where standard api.binance.com is geoblocked.
-    // We use api-gcp.binance.com (using Google Cloud CDN) which is not geoblocked.
-    const url = `https://api-gcp.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
+    // Render hosts in the USA where standard api.binance.com and api-gcp.binance.com are geoblocked.
+    // data.binance.com or data-api.binance.vision are specialized public market endpoints that have much more relaxed/no geo-blocking for datacenters.
+    const url = `https://data.binance.com/api/v3/ticker/24hr?symbols=[${symbolsQuery}]`;
     
     const response = await fetch(url);
     if (!response.ok) {
